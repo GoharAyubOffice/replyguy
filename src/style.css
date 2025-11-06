@@ -3,17 +3,16 @@
 @tailwind utilities;
 
 .replyguy-container {
-  @apply bg-transparent rounded-none p-2;
+  @apply bg-transparent rounded-none;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
   border-top: 1px solid rgb(47, 51, 54);
   margin: 0;
-  padding-top: 12px;
-  padding-bottom: 12px;
-  padding-left: 0;
-  padding-right: 0;
+  padding: 12px 0;
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
 .replyguy-header {
@@ -56,8 +55,17 @@
 }
 
 .replyguy-options {
-  @apply grid grid-cols-4 gap-1.5;
+  @apply grid gap-1.5;
   width: 100%;
+  box-sizing: border-box;
+  grid-template-columns: repeat(4, 1fr);
+  overflow-x: hidden;
+}
+
+/* Responsive grid for narrow containers */
+#replyguy-overlay[data-layout="narrow"] .replyguy-options {
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
 }
 
 .replyguy-custom-row {
@@ -65,11 +73,15 @@
 }
 
 .replyguy-option {
-  @apply flex items-center justify-center gap-1 px-2.5 py-1 rounded-full transition-colors cursor-pointer text-xs whitespace-nowrap;
+  @apply flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-full transition-colors cursor-pointer text-xs whitespace-nowrap;
   background-color: rgb(51, 54, 57);
   color: rgb(231, 233, 234);
   border: 1px solid rgb(51, 54, 57);
   min-width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
 }
 
 .replyguy-option:hover {

@@ -81,12 +81,12 @@ function createOverlay() {
   overlayContainer = document.createElement('div');
   overlayContainer.id = 'replyguy-overlay';
   overlayContainer.style.cssText = `
-    position: static !important;
+    position: relative;
     z-index: 1;
     pointer-events: auto;
     display: block;
     padding: 0;
-    margin: 12px 0;
+    margin: 12px 0 0 0;
     width: 100%;
     box-sizing: border-box;
   `;
@@ -98,10 +98,35 @@ function createOverlay() {
   return overlayContainer;
 }
 
+function validateOverlayPosition(overlay: HTMLElement): { isValid: boolean; message: string } {
+  const rect = overlay.getBoundingClientRect();
+
+  // Check if visible in viewport
+  const isInViewport = rect.top >= 0 && rect.bottom <= window.innerHeight;
+
+  // Check if has reasonable dimensions
+  const hasWidth = rect.width >= 250;
+  const hasHeight = rect.height >= 50;
+
+  // Check if not in top-left corner (common positioning error)
+  const notInCorner = !(rect.top < 100 && rect.left < 100);
+
+  const isValid = hasWidth && hasHeight && notInCorner;
+
+  let message = `Overlay position check: width=${rect.width.toFixed(0)}px, height=${rect.height.toFixed(0)}px, top=${rect.top.toFixed(0)}px, left=${rect.left.toFixed(0)}px`;
+
+  if (!hasWidth) message += ' [ERROR: Width too small]';
+  if (!hasHeight) message += ' [ERROR: Height too small]';
+  if (!notInCorner) message += ' [WARNING: May be in wrong position]';
+  if (!isInViewport) message += ' [WARNING: Not fully in viewport]';
+
+  return { isValid, message };
+}
+
 function findReplyContainer(textarea: HTMLElement): HTMLElement | null {
   console.log('[ReplyGuy] Finding reply container for textarea:', textarea);
 
-  // Find the toolbar first - it's the most reliable anchor point
+  // STRATEGY 1: Find the common parent of textarea and toolbar
   const toolbar = document.querySelector(TWITTER_SELECTORS.REPLY_COMPOSER) as HTMLElement;
   console.log('[ReplyGuy] Toolbar search result:', toolbar ? 'Found' : 'Not found');
 
@@ -128,9 +153,21 @@ function findReplyContainer(textarea: HTMLElement): HTMLElement | null {
     console.log('[ReplyGuy] Could not find common parent with toolbar');
   }
 
-  // Fallback: Look for div[role="group"]
-  console.log('[ReplyGuy] Trying fallback: div[role="group"]');
-  let container = textarea.closest('div[role="group"]') as HTMLElement;
+  // STRATEGY 2: Look for data-testid="tweetTextarea" container
+  console.log('[ReplyGuy] Trying strategy 2: Looking for textarea data-testid container');
+  let container = textarea.closest('[data-testid*="Textarea"]') as HTMLElement;
+  if (container && container !== document.body && container !== document.documentElement) {
+    const rect = container.getBoundingClientRect();
+    console.log('[ReplyGuy] Found container via data-testid, width:', rect.width, 'height:', rect.height);
+    if (rect.width > 50 && container.contains(textarea)) {
+      console.log('[ReplyGuy] Using textarea data-testid container');
+      return container;
+    }
+  }
+
+  // STRATEGY 3: Look for div[role="group"]
+  console.log('[ReplyGuy] Trying strategy 3: div[role="group"]');
+  container = textarea.closest('div[role="group"]') as HTMLElement;
   if (container && container !== document.body && container !== document.documentElement) {
     const rect = container.getBoundingClientRect();
     console.log('[ReplyGuy] Found container via role="group", width:', rect.width, 'height:', rect.height);
@@ -140,8 +177,8 @@ function findReplyContainer(textarea: HTMLElement): HTMLElement | null {
     }
   }
 
-  // Last resort: Walk up from textarea and find the FULL reply composer container
-  console.log('[ReplyGuy] Last resort: walking up from textarea');
+  // STRATEGY 4: Walk up from textarea and find a suitable parent with reasonable size
+  console.log('[ReplyGuy] Strategy 4: walking up from textarea');
   let element = textarea.parentElement;
 
   if (!element) {
@@ -154,28 +191,24 @@ function findReplyContainer(textarea: HTMLElement): HTMLElement | null {
   let bestCandidateDepth = -1;
   let bestCandidateWidth = 0;
 
-  // Walk up MORE levels to find the TRUE reply composer container
+  // Walk up to find the widest reasonable container (typically 400px+ wide)
   while (element && element !== document.body && depth < 20) {
     if (element !== document.documentElement) {
       const rect = element.getBoundingClientRect();
-      console.log('[ReplyGuy] Checking element at depth', depth, 'width:', rect.width, 'height:', rect.height, 'tag:', element.tagName, 'class:', element.className);
+      const hasMinHeight = rect.height > 50;
+      const hasMinWidth = rect.width >= 350; // More flexible than 480px
 
-      // Look for WIDER containers - reply composer is typically 480px+ wide
-      // Small DraftJS containers (400-450px) are NOT what we want
-      if (rect.width >= 480 && rect.height > 50) {
-        console.log('[ReplyGuy] Found WIDE container candidate at depth', depth, 'width:', rect.width);
+      console.log('[ReplyGuy] Depth', depth, '- tag:', element.tagName, 'width:', rect.width, 'height:', rect.height, 'class:', element.className);
 
-        // Prefer wider containers at deeper levels (further up the tree)
-        if (!bestCandidate || rect.width > bestCandidateWidth) {
+      if (hasMinWidth && hasMinHeight) {
+        console.log('[ReplyGuy] Found candidate at depth', depth, 'width:', rect.width);
+
+        // Prefer the widest container that still contains textarea
+        if (!bestCandidate || (rect.width > bestCandidateWidth && rect.width < 1200)) {
           bestCandidate = element;
           bestCandidateDepth = depth;
           bestCandidateWidth = rect.width;
           console.log('[ReplyGuy] New best candidate: depth', depth, 'width:', rect.width);
-        }
-
-        // If we find a container 500px+ at a good depth (10-19 levels), keep checking for wider ones
-        if (rect.width >= 500 && depth >= 10) {
-          console.log('[ReplyGuy] Found good container at depth:', depth, 'width:', rect.width, '- continuing to look for wider');
         }
       }
     }
@@ -185,11 +218,11 @@ function findReplyContainer(textarea: HTMLElement): HTMLElement | null {
 
   // If we found any candidate, use it
   if (bestCandidate) {
-    console.log('[ReplyGuy] Using best candidate found at depth', bestCandidateDepth, 'width:', bestCandidateWidth);
+    console.log('[ReplyGuy] Using best candidate at depth', bestCandidateDepth, 'width:', bestCandidateWidth);
     return bestCandidate;
   }
 
-  console.error('[ReplyGuy] COULD NOT FIND VALID REPLY CONTAINER - no wide containers found');
+  console.error('[ReplyGuy] COULD NOT FIND VALID REPLY CONTAINER');
   return null;
 }
 
@@ -227,76 +260,41 @@ function positionOverlay(textarea: HTMLElement): boolean {
 
     let insertionSuccess = false;
 
-    // PRIMARY STRATEGY: Find and insert before the toolbar
-    // Search for toolbar more aggressively
-    let toolbar = replyContainer.querySelector(TWITTER_SELECTORS.REPLY_COMPOSER) as HTMLElement;
+    // STRATEGY: Insert after the textarea's direct container
+    // Walk up a few levels from textarea to find the right insertion point
+    let insertPoint = textarea.parentElement;
+    let depth = 0;
 
-    // If toolbar not found in container, search globally but verify it's related
-    if (!toolbar) {
-      console.log('[ReplyGuy] Toolbar not found in container, searching globally...');
-      const allToolbars = document.querySelectorAll(TWITTER_SELECTORS.REPLY_COMPOSER);
-      console.log('[ReplyGuy] Found', allToolbars.length, 'toolbars globally');
+    // Walk up to find a suitable insertion point (usually 2-4 levels up)
+    while (insertPoint && depth < 6 && insertPoint !== replyContainer) {
+      const rect = insertPoint.getBoundingClientRect();
+      console.log('[ReplyGuy] Checking insertion point at depth', depth, 'width:', rect.width);
 
-      // Find the toolbar that's closest to our textarea
-      for (const tb of allToolbars) {
-        if (replyContainer.contains(tb)) {
-          toolbar = tb as HTMLElement;
-          console.log('[ReplyGuy] Found toolbar within reply container');
+      // If we found a good level with substantial width, insert after it
+      if (rect.width > 250) {
+        const parent = insertPoint.parentElement;
+        if (parent && parent.contains(insertPoint)) {
+          const nextSibling = insertPoint.nextSibling;
+          if (nextSibling) {
+            parent.insertBefore(overlayContainer, nextSibling);
+          } else {
+            parent.appendChild(overlayContainer);
+          }
+          insertionSuccess = true;
+          console.log('[ReplyGuy] Inserted overlay after textarea container at depth', depth);
           break;
         }
       }
+
+      insertPoint = insertPoint.parentElement;
+      depth++;
     }
 
-    // PRIMARY STRATEGY: Insert before toolbar
-    // This places our UI between the textarea and the toolbar (action buttons)
-    if (toolbar) {
-      // Find the parent that contains the toolbar
-      const toolbarParent = toolbar.parentElement;
-      if (toolbarParent && replyContainer.contains(toolbarParent)) {
-        console.log('[ReplyGuy] Inserting overlay before toolbar in parent');
-        toolbarParent.insertBefore(overlayContainer, toolbar);
-        insertionSuccess = true;
-      }
-    }
-
-    // FALLBACK STRATEGY: Find where to insert by walking up from textarea
-    if (!insertionSuccess) {
-      console.log('[ReplyGuy] Toolbar not found, using fallback strategy');
-
-      // Walk up from textarea to find a good insertion point
-      let current = textarea;
-      let depth = 0;
-
-      while (current && current !== replyContainer && depth < 10) {
-        const parent = current.parentElement;
-        if (parent && parent.contains(current)) {
-          // Check if this level is a good insertion point
-          // We want to insert after the element that contains the textarea
-          const nextSibling = current.nextSibling;
-
-          if (nextSibling) {
-            // Insert before the next sibling
-            parent.insertBefore(overlayContainer, nextSibling);
-            insertionSuccess = true;
-            console.log('[ReplyGuy] Inserted using fallback at depth', depth);
-            break;
-          } else if (parent !== replyContainer) {
-            // Try the parent level
-            current = parent;
-            depth++;
-            continue;
-          }
-        }
-        current = parent as HTMLElement;
-        depth++;
-      }
-
-      // Last resort: append to the reply container
-      if (!insertionSuccess && replyContainer) {
-        console.log('[ReplyGuy] Using last resort: appending to reply container');
-        replyContainer.appendChild(overlayContainer);
-        insertionSuccess = true;
-      }
+    // FALLBACK: Append to reply container if nothing else worked
+    if (!insertionSuccess && replyContainer) {
+      console.log('[ReplyGuy] Using fallback: appending to reply container');
+      replyContainer.appendChild(overlayContainer);
+      insertionSuccess = true;
     }
 
     if (!insertionSuccess) {
@@ -312,15 +310,13 @@ function positionOverlay(textarea: HTMLElement): boolean {
       return false;
     }
 
-    // Ensure proper styling (width and positioning already set in createOverlay)
-    const overlayRect = overlayContainer.getBoundingClientRect();
-    console.log('[ReplyGuy] Overlay successfully positioned at top:', overlayRect.top, 'left:', overlayRect.left, 'width:', overlayRect.width);
+    // Validate overlay position
+    const validation = validateOverlayPosition(overlayContainer);
+    console.log('[ReplyGuy]', validation.message);
 
-    // Verify it's in a reasonable position (not top-left corner of screen)
-    if (overlayRect.top < 100 && overlayRect.left < 100 && overlayRect.width < 300) {
-      console.error('[ReplyGuy] Overlay appears to be in wrong position (possible top-left corner)');
-      console.error('[ReplyGuy] Position:', { top: overlayRect.top, left: overlayRect.left, width: overlayRect.width });
-      // Don't cleanup - let it show anyway for debugging
+    if (!validation.isValid) {
+      console.error('[ReplyGuy] Overlay position validation failed - positioning may be incorrect');
+      // Don't cleanup - let it show anyway so user can debug
     }
 
     // Initialize React app now that it's in the DOM

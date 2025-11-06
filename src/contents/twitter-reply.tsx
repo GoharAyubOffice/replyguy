@@ -99,8 +99,39 @@ function getReplyContext(textarea: HTMLElement): ReplyContext {
   return 'inline';
 }
 
-function findToolbar(textarea: HTMLElement): HTMLElement | null {
-  console.log('[ReplyGuy] Searching for toolbar...');
+function findToolbar(textarea: HTMLElement, context: ReplyContext): HTMLElement | null {
+  console.log('[ReplyGuy] Searching for toolbar, context:', context);
+  
+  // For modal context, limit search to within the modal dialog only
+  if (context === 'modal') {
+    const modal = textarea.closest('[role="dialog"]');
+    if (modal) {
+      console.log('[ReplyGuy] Searching within modal dialog');
+      
+      // Search ONLY within the modal for toolbar
+      const toolbar = modal.querySelector('[data-testid="toolBar"]');
+      if (toolbar) {
+        console.log('[ReplyGuy] Found toolbar in modal');
+        return toolbar as HTMLElement;
+      }
+      
+      // Fallback: search for role="group" within modal
+      const groups = modal.querySelectorAll('[role="group"]');
+      for (const group of groups) {
+        if (group.querySelector('[aria-label*="Emoji"]') || 
+            group.querySelector('[aria-label*="emoji"]') ||
+            group.querySelector('[aria-label*="GIF"]')) {
+          console.log('[ReplyGuy] Found toolbar by button icons in modal');
+          return group as HTMLElement;
+        }
+      }
+      
+      console.warn('[ReplyGuy] Could not find toolbar in modal');
+      return null;
+    }
+  }
+  
+  // For inline and DM contexts, use broader search
   
   // Strategy 1: Look in closest cellInnerDiv
   const cellInnerDiv = textarea.closest('[data-testid="cellInnerDiv"]');
@@ -135,17 +166,6 @@ function findToolbar(textarea: HTMLElement): HTMLElement | null {
       return toolbar as HTMLElement;
     }
     parent = parent.parentElement;
-  }
-  
-  // Strategy 4: Find by role="group" with emoji/media buttons
-  const groups = document.querySelectorAll('[role="group"]');
-  for (const group of groups) {
-    if (group.querySelector('[aria-label*="Emoji"]') || 
-        group.querySelector('[aria-label*="emoji"]') ||
-        group.querySelector('[aria-label*="GIF"]')) {
-      console.log('[ReplyGuy] Found toolbar by button icons');
-      return group as HTMLElement;
-    }
   }
   
   console.warn('[ReplyGuy] Could not find toolbar');
@@ -272,7 +292,7 @@ function positionOverlay(textarea: HTMLElement) {
   overlayContainer.setAttribute('data-context', context);
 
   // UNIFIED APPROACH: Find toolbar and position after it
-  const toolbar = findToolbar(textarea);
+  const toolbar = findToolbar(textarea, context);
   
   if (toolbar && toolbar.parentElement) {
     // Insert overlay after toolbar
@@ -286,7 +306,19 @@ function positionOverlay(textarea: HTMLElement) {
     }
     
     // Calculate width from parent
-    const parentWidth = parent.getBoundingClientRect().width;
+    let parentWidth = parent.getBoundingClientRect().width;
+    
+    // For modal context, ensure width fits nicely within dialog
+    if (context === 'modal') {
+      const modal = textarea.closest('[role="dialog"]');
+      if (modal) {
+        const modalWidth = modal.getBoundingClientRect().width;
+        // Use the parent width but ensure it's reasonable for the modal
+        parentWidth = Math.min(parentWidth, modalWidth - 40);
+        console.log('[ReplyGuy] Modal width adjusted:', parentWidth, 'from modal width:', modalWidth);
+      }
+    }
+    
     const width = Math.max(parentWidth, 300);
     
     overlayContainer.style.width = `${width}px`;

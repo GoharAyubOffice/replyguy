@@ -496,4 +496,6 @@ if (document.readyState === 'loading') {
   observeReplyBoxes();
 }
 
-export default App;
+// Don't export App as default - this causes Plasmo to auto-mount it at top-left
+// We manually control mounting inside our positioned overlay
+// export default App;

@@ -121,17 +121,103 @@ export function insertTextIntoReply(text: string): void {
 
   console.log('[ReplyGuy] Inserting text into reply:', text.substring(0, 50));
 
-  // Check if it's a contenteditable div (Twitter uses these)
+  // Check if it's a contenteditable div (Twitter uses Draft.js with contenteditable)
   if (textarea.getAttribute('contenteditable') === 'true') {
-    // For contenteditable divs
-    textarea.textContent = text;
-    textarea.innerText = text;
+    console.log('[ReplyGuy] Using Selection/Range API for contenteditable div');
     
-    // Trigger input event
+    // Focus first
+    textarea.focus();
+    
+    // Method 1: Try using execCommand for better Draft.js compatibility
+    try {
+      // Select all existing content
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(textarea);
+      range.collapse(false); // Collapse to end
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      
+      // Select all and delete
+      document.execCommand('selectAll', false);
+      // Insert new text using insertText command (best for Draft.js)
+      const success = document.execCommand('insertText', false, text);
+      
+      if (success) {
+        console.log('[ReplyGuy] Text inserted using execCommand insertText');
+        
+        // Dispatch proper events for Draft.js
+        textarea.dispatchEvent(new InputEvent('beforeinput', { 
+          bubbles: true, 
+          cancelable: true,
+          inputType: 'insertText',
+          data: text
+        }));
+        textarea.dispatchEvent(new InputEvent('input', { 
+          bubbles: true, 
+          cancelable: true,
+          inputType: 'insertText',
+          data: text
+        }));
+        
+        // Focus again to ensure cursor is visible
+        textarea.focus();
+        return;
+      }
+    } catch (e) {
+      console.log('[ReplyGuy] execCommand failed, trying alternative method:', e);
+    }
+    
+    // Method 2: Fallback - Use Selection API with Range manipulation
+    try {
+      const selection = window.getSelection();
+      if (selection) {
+        // Select all content
+        const range = document.createRange();
+        range.selectNodeContents(textarea);
+        range.deleteContents();
+        
+        // Create text node and insert
+        const textNode = document.createTextNode(text);
+        range.insertNode(textNode);
+        
+        // Move cursor to end
+        range.setStartAfter(textNode);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+        // Dispatch events
+        textarea.dispatchEvent(new InputEvent('beforeinput', { 
+          bubbles: true, 
+          cancelable: true,
+          inputType: 'insertText',
+          data: text
+        }));
+        textarea.dispatchEvent(new InputEvent('input', { 
+          bubbles: true, 
+          cancelable: true,
+          inputType: 'insertText',
+          data: text
+        }));
+        
+        console.log('[ReplyGuy] Text inserted using Selection/Range API');
+        textarea.focus();
+        return;
+      }
+    } catch (e) {
+      console.log('[ReplyGuy] Selection/Range API failed, using last resort:', e);
+    }
+    
+    // Method 3: Last resort - direct manipulation (may not be fully editable)
+    console.warn('[ReplyGuy] Using last resort textContent method (may not be fully editable)');
+    textarea.textContent = text;
     textarea.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true }));
-    textarea.dispatchEvent(new Event('change', { bubbles: true }));
+    textarea.focus();
+    
   } else {
     // For actual textarea elements
+    console.log('[ReplyGuy] Using textarea value setter');
     const nativeTextareaSetter = Object.getOwnPropertyDescriptor(
       window.HTMLTextAreaElement.prototype,
       "value"
@@ -146,9 +232,8 @@ export function insertTextIntoReply(text: string): void {
     // Trigger input event to notify Twitter
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
     textarea.dispatchEvent(new Event('change', { bubbles: true }));
+    textarea.focus();
   }
   
-  // Focus on the textarea
-  textarea.focus();
-  console.log('[ReplyGuy] Text inserted successfully');
+  console.log('[ReplyGuy] Text insertion completed');
 }

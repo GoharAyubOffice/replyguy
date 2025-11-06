@@ -45,32 +45,39 @@ function App() {
   );
 }
 
+// Helper function to clean up overlay completely - defined early so it can be used everywhere
+function cleanupOverlay() {
+  if (overlayContainer) {
+    if (overlayContainer.parentElement) {
+      console.log('[ReplyGuy] Removing overlay from DOM during cleanup');
+      overlayContainer.remove();
+    }
+    overlayContainer = null;
+  }
+  if (overlayRoot) {
+    try {
+      overlayRoot.unmount();
+      console.log('[ReplyGuy] React root unmounted');
+    } catch (e) {
+      // Ignore unmount errors
+      console.log('[ReplyGuy] Error unmounting React root (ignored):', e);
+    }
+    overlayRoot = null;
+  }
+}
+
 function createOverlay() {
   // Remove ALL existing overlay containers first to prevent duplicates
   const existingOverlays = document.querySelectorAll('#replyguy-overlay');
   existingOverlays.forEach(overlay => {
+    console.log('[ReplyGuy] Removing existing overlay from DOM');
     overlay.remove();
   });
 
-  // Reset overlayContainer if it was removed
-  if (!document.contains(overlayContainer)) {
-    overlayContainer = null;
-    overlayRoot = null;
-  }
+  // Clean up any existing overlay container
+  cleanupOverlay();
 
-  if (overlayContainer && overlayContainer.parentElement) {
-    // Verify it's in a valid location
-    const rect = overlayContainer.getBoundingClientRect();
-    // If it's in the top-left corner (likely wrong), remove it
-    if (rect.top < 50 && rect.left < 50) {
-      overlayContainer.remove();
-      overlayContainer = null;
-      overlayRoot = null;
-    } else {
-      return overlayContainer;
-    }
-  }
-
+  // Create new overlay container
   overlayContainer = document.createElement('div');
   overlayContainer.id = 'replyguy-overlay';
   overlayContainer.style.cssText = `
@@ -81,6 +88,10 @@ function createOverlay() {
     padding: 0;
     margin: 0;
   `;
+  
+  // CRITICAL: Do NOT append to body - overlay must be positioned by positionOverlay
+  // If overlay is not in DOM, it will be positioned by positionOverlay
+  console.log('[ReplyGuy] Created new overlay container (not yet in DOM)');
   
   return overlayContainer;
 }
@@ -195,13 +206,16 @@ function findReplyContainer(textarea: HTMLElement): HTMLElement | null {
   return container;
 }
 
-function positionOverlay(textarea: HTMLElement) {
-  if (!overlayContainer) return;
+function positionOverlay(textarea: HTMLElement): boolean {
+  if (!overlayContainer) {
+    console.warn('[ReplyGuy] No overlay container to position');
+    return false;
+  }
   
   // Prevent concurrent positioning calls
   if (isPositioning) {
     console.log('[ReplyGuy] Already positioning, skipping duplicate call');
-    return;
+    return false;
   }
   
   isPositioning = true;
@@ -211,21 +225,23 @@ function positionOverlay(textarea: HTMLElement) {
     const replyContainer = findReplyContainer(textarea);
     
     if (!replyContainer) {
-      console.warn('[ReplyGuy] Could not find reply container');
-      // Don't position if we can't find the right container - prevents wrong placement
-      return;
+      console.warn('[ReplyGuy] Could not find reply container - cleaning up');
+      cleanupOverlay();
+      return false;
     }
 
     // Verify this is actually a reply container by checking if it contains the textarea
     if (!replyContainer.contains(textarea)) {
-      console.warn('[ReplyGuy] Container does not contain textarea, skipping');
-      return;
+      console.warn('[ReplyGuy] Container does not contain textarea - cleaning up');
+      cleanupOverlay();
+      return false;
     }
 
     // Verify container is not body or html
     if (replyContainer === document.body || replyContainer === document.documentElement) {
-      console.warn('[ReplyGuy] Container is body/html, skipping');
-      return;
+      console.warn('[ReplyGuy] Container is body/html - cleaning up');
+      cleanupOverlay();
+      return false;
     }
 
     // Calculate container width and position
@@ -234,8 +250,9 @@ function positionOverlay(textarea: HTMLElement) {
     
     // More lenient width validation - just ensure it's not the entire page
     if (containerWidth > 2000 || containerWidth < 50) {
-      console.warn('[ReplyGuy] Container width seems invalid:', containerWidth);
-      return;
+      console.warn('[ReplyGuy] Container width seems invalid:', containerWidth, '- cleaning up');
+      cleanupOverlay();
+      return false;
     }
     
     // Removed strict position validation (top < 10 check) - this was rejecting valid containers
@@ -309,14 +326,9 @@ function positionOverlay(textarea: HTMLElement) {
     // If we couldn't find a safe insertion point, don't position at all
     // CRITICAL: Never append to body - if we can't find safe spot, fail gracefully
     if (!insertionSuccess) {
-      console.error('[ReplyGuy] Could not find safe insertion point, not positioning overlay');
-      // Remove overlay if it exists to prevent it from appearing elsewhere
-      if (overlayContainer.parentElement) {
-        overlayContainer.remove();
-      }
-      overlayContainer = null;
-      overlayRoot = null;
-      return;
+      console.error('[ReplyGuy] Could not find safe insertion point - cleaning up');
+      cleanupOverlay();
+      return false;
     }
 
     // Set the width and styling to match the container
@@ -324,14 +336,19 @@ function positionOverlay(textarea: HTMLElement) {
       const overlayRect = overlayContainer.getBoundingClientRect();
       console.log('[ReplyGuy] Overlay positioned at top:', overlayRect.top, 'left:', overlayRect.left);
       
-      // Only validate if it's clearly in the wrong place (top-left corner with very small values)
-      // Removed strict validation that was rejecting valid positions
-      if (overlayRect.top < 5 && overlayRect.left < 5 && overlayRect.width < 100) {
-        console.warn('[ReplyGuy] Overlay appears to be in top-left corner with invalid size, removing');
-        overlayContainer.remove();
-        overlayContainer = null;
-        overlayRoot = null;
-        return;
+      // CRITICAL: Check if overlay is in wrong position (top-left corner)
+      // This is the final safety check before showing UI
+      if (overlayRect.top < 10 && overlayRect.left < 10) {
+        console.error('[ReplyGuy] Overlay is in top-left corner (top:', overlayRect.top, 'left:', overlayRect.left, ') - removing immediately');
+        cleanupOverlay();
+        return false;
+      }
+      
+      // Verify overlay is actually within the reply container bounds
+      if (!replyContainer.contains(overlayContainer)) {
+        console.error('[ReplyGuy] Overlay is not contained within reply container - removing');
+        cleanupOverlay();
+        return false;
       }
       
       overlayContainer.style.width = `${containerWidth}px`;
@@ -341,7 +358,7 @@ function positionOverlay(textarea: HTMLElement) {
       overlayContainer.style.marginBottom = '12px';
       console.log('[ReplyGuy] Set width to match container:', containerWidth, 'marginTop: 8px, marginBottom: 12px');
       
-      // Initialize React app now that it's in the DOM
+      // Initialize React app now that it's in the DOM and validated
       if (!overlayRoot) {
         overlayRoot = createRoot(overlayContainer);
         overlayRoot.render(<App />);
@@ -352,8 +369,12 @@ function positionOverlay(textarea: HTMLElement) {
       if (!resizeObserver) {
         setTimeout(() => observeContainerResize(), 100);
       }
+      
+      return true; // Successfully positioned
     } else {
-      console.warn('[ReplyGuy] Overlay has no parent element after insertion attempt');
+      console.error('[ReplyGuy] Overlay has no parent element after insertion attempt - cleaning up');
+      cleanupOverlay();
+      return false;
     }
   } finally {
     isPositioning = false;
@@ -399,43 +420,48 @@ function handleReplyBoxOpened(textarea: HTMLElement) {
     // Create overlay first
     createOverlay();
     
-    // Try to position - if positioning fails, don't show UI
-    positionOverlay(textarea);
+    // Try to position - positionOverlay now returns boolean
+    // CRITICAL: Only show UI if positioning succeeds
+    const positioningSuccess = positionOverlay(textarea);
     
-    // Only show UI if overlay is actually positioned (has a parent)
-    if (overlayContainer && overlayContainer.parentElement) {
-      const rect = overlayContainer.getBoundingClientRect();
-      // Final check: make sure it's not in top-left corner
-      if (rect.top < 5 && rect.left < 5 && rect.width < 100) {
-        console.error('[ReplyGuy] Overlay ended up in top-left corner, removing');
-        overlayContainer.remove();
-        overlayContainer = null;
-        overlayRoot = null;
-      } else {
-        // Show UI only if successfully positioned
-        if (tweetContext) {
-          console.log('[ReplyGuy] Tweet context extracted:', tweetContext);
-          if ((window as any).__replyGuyShowUI) {
-            (window as any).__replyGuyShowUI(tweetContext);
-            console.log('[ReplyGuy] UI should now be visible');
-          }
-        } else {
-          console.warn('[ReplyGuy] Could not extract tweet context, using dummy data...');
-          const fallbackContext: TweetContext = {
-            text: "Unable to extract tweet text",
-            author: "Unknown"
-          };
-          if ((window as any).__replyGuyShowUI) {
-            (window as any).__replyGuyShowUI(fallbackContext);
-          }
-        }
+    if (!positioningSuccess) {
+      console.error('[ReplyGuy] Positioning failed - UI will NOT be shown');
+      // Cleanup already done in positionOverlay, but ensure it's clean
+      cleanupOverlay();
+      return;
+    }
+    
+    // Double-check overlay is in correct position before showing UI
+    if (!overlayContainer || !overlayContainer.parentElement) {
+      console.error('[ReplyGuy] Overlay missing after positioning - cleaning up');
+      cleanupOverlay();
+      return;
+    }
+    
+    const rect = overlayContainer.getBoundingClientRect();
+    // Final safety check - if it's in top-left corner, remove it
+    if (rect.top < 10 && rect.left < 10) {
+      console.error('[ReplyGuy] Final check: Overlay in top-left corner (top:', rect.top, 'left:', rect.left, ') - removing');
+      cleanupOverlay();
+      return;
+    }
+    
+    // Show UI only if all checks pass
+    console.log('[ReplyGuy] All checks passed - showing UI at position:', rect.top, rect.left);
+    if (tweetContext) {
+      console.log('[ReplyGuy] Tweet context extracted:', tweetContext);
+      if ((window as any).__replyGuyShowUI) {
+        (window as any).__replyGuyShowUI(tweetContext);
+        console.log('[ReplyGuy] UI should now be visible');
       }
     } else {
-      console.error('[ReplyGuy] Overlay positioning failed - UI will not be shown');
-      // Clean up if positioning failed
-      if (overlayContainer) {
-        overlayContainer = null;
-        overlayRoot = null;
+      console.warn('[ReplyGuy] Could not extract tweet context, using dummy data...');
+      const fallbackContext: TweetContext = {
+        text: "Unable to extract tweet text",
+        author: "Unknown"
+      };
+      if ((window as any).__replyGuyShowUI) {
+        (window as any).__replyGuyShowUI(fallbackContext);
       }
     }
     

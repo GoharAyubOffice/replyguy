@@ -63,10 +63,11 @@ export default function ReplyOptions({ tweetContext, onClose }: ReplyOptionsProp
       });
 
       insertTextIntoReply(reply);
-      onClose();
+      
+      // Don't close, keep UI visible
+      setLoading(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate reply");
-    } finally {
       setLoading(null);
     }
   }

@@ -101,6 +101,7 @@ function findReplyContainer(textarea: HTMLElement): HTMLElement | null {
 
   // Find the toolbar first - it's the most reliable anchor point
   const toolbar = document.querySelector(TWITTER_SELECTORS.REPLY_COMPOSER) as HTMLElement;
+  console.log('[ReplyGuy] Toolbar search result:', toolbar ? 'Found' : 'Not found');
 
   if (toolbar) {
     console.log('[ReplyGuy] Found toolbar, looking for common parent with textarea');
@@ -111,7 +112,7 @@ function findReplyContainer(textarea: HTMLElement): HTMLElement | null {
     while (element && element !== document.body && depth < 15) {
       if (element.contains(toolbar)) {
         const rect = element.getBoundingClientRect();
-        console.log('[ReplyGuy] Found common parent at depth', depth, 'width:', rect.width);
+        console.log('[ReplyGuy] Found common parent at depth', depth, 'width:', rect.width, 'height:', rect.height);
 
         // This is the container - return it
         if (rect.width > 50 && element !== document.documentElement) {
@@ -122,35 +123,63 @@ function findReplyContainer(textarea: HTMLElement): HTMLElement | null {
       element = element.parentElement;
       depth++;
     }
+    console.log('[ReplyGuy] Could not find common parent with toolbar');
   }
 
   // Fallback: Look for div[role="group"]
+  console.log('[ReplyGuy] Trying fallback: div[role="group"]');
   let container = textarea.closest('div[role="group"]') as HTMLElement;
   if (container && container !== document.body && container !== document.documentElement) {
     const rect = container.getBoundingClientRect();
-    console.log('[ReplyGuy] Fallback: Found container via role="group", width:', rect.width);
+    console.log('[ReplyGuy] Found container via role="group", width:', rect.width, 'height:', rect.height);
     if (rect.width > 50 && container.contains(textarea)) {
+      console.log('[ReplyGuy] Using div[role="group"] as container');
       return container;
     }
   }
 
-  // Last resort: Walk up from textarea
+  // Last resort: Walk up from textarea and find ANY reasonable parent
   console.log('[ReplyGuy] Last resort: walking up from textarea');
   let element = textarea.parentElement;
+
+  if (!element) {
+    console.error('[ReplyGuy] Textarea has no parent element!');
+    return null;
+  }
+
   let depth = 0;
-  while (element && element !== document.body && depth < 10) {
+  let bestCandidate: HTMLElement | null = null;
+  let bestCandidateDepth = -1;
+
+  while (element && element !== document.body && depth < 12) {
     if (element !== document.documentElement) {
       const rect = element.getBoundingClientRect();
-      if (rect.width > 200 && rect.height > 100 && element.contains(textarea)) {
-        console.log('[ReplyGuy] Found container via walk at depth', depth);
-        return element;
+      console.log('[ReplyGuy] Checking element at depth', depth, 'width:', rect.width, 'height:', rect.height, 'tag:', element.tagName, 'class:', element.className);
+
+      // Very lenient check - just need a visible element
+      if (rect.width > 100 && rect.height > 50) {
+        console.log('[ReplyGuy] Found valid container candidate at depth', depth);
+        bestCandidate = element;
+        bestCandidateDepth = depth;
+
+        // If depth is reasonable (3-8 levels up), use it immediately
+        if (depth >= 3 && depth <= 8) {
+          console.log('[ReplyGuy] Using container at ideal depth:', depth);
+          return element;
+        }
       }
     }
     element = element.parentElement;
     depth++;
   }
 
-  console.error('[ReplyGuy] COULD NOT FIND VALID REPLY CONTAINER');
+  // If we found any candidate, use it
+  if (bestCandidate) {
+    console.log('[ReplyGuy] Using best candidate found at depth', bestCandidateDepth);
+    return bestCandidate;
+  }
+
+  console.error('[ReplyGuy] COULD NOT FIND VALID REPLY CONTAINER - no candidates found');
   return null;
 }
 

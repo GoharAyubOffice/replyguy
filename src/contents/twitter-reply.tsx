@@ -81,18 +81,20 @@ function createOverlay() {
   overlayContainer = document.createElement('div');
   overlayContainer.id = 'replyguy-overlay';
   overlayContainer.style.cssText = `
-    position: relative;
+    position: static !important;
     z-index: 1;
     pointer-events: auto;
     display: block;
     padding: 0;
-    margin: 0;
+    margin: 12px 0;
+    width: 100%;
+    box-sizing: border-box;
   `;
-  
+
   // CRITICAL: Do NOT append to body - overlay must be positioned by positionOverlay
   // If overlay is not in DOM, it will be positioned by positionOverlay
   console.log('[ReplyGuy] Created new overlay container (not yet in DOM)');
-  
+
   return overlayContainer;
 }
 
@@ -217,9 +219,6 @@ function positionOverlay(textarea: HTMLElement): boolean {
 
     console.log('[ReplyGuy] Reply container found, positioning overlay...');
 
-    // Find the toolbar - this is where we'll insert our UI (just before it)
-    const toolbar = replyContainer.querySelector(TWITTER_SELECTORS.REPLY_COMPOSER) as HTMLElement;
-
     // Remove from previous parent if exists
     if (overlayContainer.parentElement) {
       console.log('[ReplyGuy] Removing overlay from previous parent');
@@ -228,13 +227,33 @@ function positionOverlay(textarea: HTMLElement): boolean {
 
     let insertionSuccess = false;
 
+    // PRIMARY STRATEGY: Find and insert before the toolbar
+    // Search for toolbar more aggressively
+    let toolbar = replyContainer.querySelector(TWITTER_SELECTORS.REPLY_COMPOSER) as HTMLElement;
+
+    // If toolbar not found in container, search globally but verify it's related
+    if (!toolbar) {
+      console.log('[ReplyGuy] Toolbar not found in container, searching globally...');
+      const allToolbars = document.querySelectorAll(TWITTER_SELECTORS.REPLY_COMPOSER);
+      console.log('[ReplyGuy] Found', allToolbars.length, 'toolbars globally');
+
+      // Find the toolbar that's closest to our textarea
+      for (const tb of allToolbars) {
+        if (replyContainer.contains(tb)) {
+          toolbar = tb as HTMLElement;
+          console.log('[ReplyGuy] Found toolbar within reply container');
+          break;
+        }
+      }
+    }
+
     // PRIMARY STRATEGY: Insert before toolbar
     // This places our UI between the textarea and the toolbar (action buttons)
     if (toolbar) {
       // Find the parent that contains the toolbar
       const toolbarParent = toolbar.parentElement;
-      if (toolbarParent) {
-        console.log('[ReplyGuy] Inserting overlay before toolbar');
+      if (toolbarParent && replyContainer.contains(toolbarParent)) {
+        console.log('[ReplyGuy] Inserting overlay before toolbar in parent');
         toolbarParent.insertBefore(overlayContainer, toolbar);
         insertionSuccess = true;
       }
@@ -293,17 +312,16 @@ function positionOverlay(textarea: HTMLElement): boolean {
       return false;
     }
 
-    // Set styling to ensure it displays correctly
-    const containerRect = replyContainer.getBoundingClientRect();
-    overlayContainer.style.width = '100%';
-    overlayContainer.style.maxWidth = '100%';
-    overlayContainer.style.boxSizing = 'border-box';
-    overlayContainer.style.marginTop = '12px';
-    overlayContainer.style.marginBottom = '12px';
-    overlayContainer.style.display = 'block';
-
+    // Ensure proper styling (width and positioning already set in createOverlay)
     const overlayRect = overlayContainer.getBoundingClientRect();
     console.log('[ReplyGuy] Overlay successfully positioned at top:', overlayRect.top, 'left:', overlayRect.left, 'width:', overlayRect.width);
+
+    // Verify it's in a reasonable position (not top-left corner of screen)
+    if (overlayRect.top < 100 && overlayRect.left < 100 && overlayRect.width < 300) {
+      console.error('[ReplyGuy] Overlay appears to be in wrong position (possible top-left corner)');
+      console.error('[ReplyGuy] Position:', { top: overlayRect.top, left: overlayRect.left, width: overlayRect.width });
+      // Don't cleanup - let it show anyway for debugging
+    }
 
     // Initialize React app now that it's in the DOM
     if (!overlayRoot) {
@@ -331,8 +349,48 @@ function handleReplyBoxOpened(textarea: HTMLElement) {
   if (handleTimeout !== null) {
     clearTimeout(handleTimeout);
   }
-  
+
   handleTimeout = window.setTimeout(() => {
+    console.log('[ReplyGuy] Checking if this is a reply box...');
+
+    // CRITICAL: Check if this is actually a REPLY box, not the main composer
+    // Look for "Replying to @username" text which only appears in replies
+    const replyingToText = document.querySelector('[data-testid="reply-to-text"]');
+    const inReplyToDiv = textarea.closest('[aria-labelledby*="modal"]');
+
+    // Alternative check: Look for "Replying to" text anywhere near the textarea
+    let isReply = false;
+
+    if (replyingToText) {
+      isReply = true;
+      console.log('[ReplyGuy] Detected reply via reply-to-text element');
+    } else if (inReplyToDiv) {
+      isReply = true;
+      console.log('[ReplyGuy] Detected reply via modal container');
+    } else {
+      // Check for "Replying to" text in the DOM
+      let parent = textarea.parentElement;
+      let depth = 0;
+      while (parent && depth < 10) {
+        const textContent = parent.textContent || '';
+        if (textContent.includes('Replying to @') || textContent.includes('Replying to')) {
+          isReply = true;
+          console.log('[ReplyGuy] Detected reply via "Replying to" text at depth', depth);
+          break;
+        }
+        parent = parent.parentElement;
+        depth++;
+      }
+    }
+
+    if (!isReply) {
+      console.log('[ReplyGuy] This is NOT a reply box (main composer), ignoring...');
+      handleTimeout = null;
+      return;
+    }
+
+    console.log('[ReplyGuy] Confirmed: This is a REPLY box, proceeding...');
+
     // Prevent multiple calls for the same textarea
     if (handlingTextarea === textarea && overlayContainer && overlayContainer.parentElement) {
       console.log('[ReplyGuy] Already handling this textarea, skipping');

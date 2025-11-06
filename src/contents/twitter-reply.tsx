@@ -72,14 +72,84 @@ function createOverlay() {
   return overlayContainer;
 }
 
-function isInlineReply(textarea: HTMLElement): boolean {
-  // Check if reply is in a modal/dialog vs inline in tweet thread
-  const modal = textarea.closest('[role="dialog"]');
-  const dmContainer = textarea.closest('[data-testid="DMDrawer"]');
-  const dmComposer = textarea.closest('[data-testid="DMComposer"]');
+type ReplyContext = 'dm' | 'modal' | 'inline';
+
+function getReplyContext(textarea: HTMLElement): ReplyContext {
+  // Check for DM context - multiple indicators
+  const dmDrawer = document.querySelector('[data-testid="DMDrawer"]');
+  const inMessageArea = textarea.closest('[aria-label*="Message"]') || 
+                        textarea.closest('[aria-label*="message"]');
+  const hasDMInPath = textarea.closest('[data-testid*="DM"]') || 
+                      textarea.closest('[data-testid*="dm"]');
   
-  // If in modal or DM, it's NOT inline
-  return !modal && !dmContainer && !dmComposer;
+  if (dmDrawer || inMessageArea || hasDMInPath) {
+    console.log('[ReplyGuy] Context: DM');
+    return 'dm';
+  }
+  
+  // Check for modal/dialog context
+  const modal = textarea.closest('[role="dialog"]');
+  if (modal) {
+    console.log('[ReplyGuy] Context: Modal');
+    return 'modal';
+  }
+  
+  // Default to inline (tweet thread reply)
+  console.log('[ReplyGuy] Context: Inline');
+  return 'inline';
+}
+
+function findToolbar(textarea: HTMLElement): HTMLElement | null {
+  console.log('[ReplyGuy] Searching for toolbar...');
+  
+  // Strategy 1: Look in closest cellInnerDiv
+  const cellInnerDiv = textarea.closest('[data-testid="cellInnerDiv"]');
+  if (cellInnerDiv) {
+    const toolbar = cellInnerDiv.querySelector('[data-testid="toolBar"]');
+    if (toolbar) {
+      console.log('[ReplyGuy] Found toolbar in cellInnerDiv');
+      return toolbar as HTMLElement;
+    }
+  }
+  
+  // Strategy 2: Look in siblings of textarea parent
+  let sibling = textarea.parentElement?.nextElementSibling;
+  let attempts = 0;
+  while (sibling && attempts < 5) {
+    const toolbar = sibling.querySelector('[data-testid="toolBar"]');
+    if (toolbar) {
+      console.log('[ReplyGuy] Found toolbar in sibling');
+      return toolbar as HTMLElement;
+    }
+    sibling = sibling.nextElementSibling;
+    attempts++;
+  }
+  
+  // Strategy 3: Search up parent chain (up to 5 levels)
+  let parent = textarea.parentElement;
+  for (let i = 0; i < 5; i++) {
+    if (!parent) break;
+    const toolbar = parent.querySelector('[data-testid="toolBar"]');
+    if (toolbar) {
+      console.log('[ReplyGuy] Found toolbar in parent chain');
+      return toolbar as HTMLElement;
+    }
+    parent = parent.parentElement;
+  }
+  
+  // Strategy 4: Find by role="group" with emoji/media buttons
+  const groups = document.querySelectorAll('[role="group"]');
+  for (const group of groups) {
+    if (group.querySelector('[aria-label*="Emoji"]') || 
+        group.querySelector('[aria-label*="emoji"]') ||
+        group.querySelector('[aria-label*="GIF"]')) {
+      console.log('[ReplyGuy] Found toolbar by button icons');
+      return group as HTMLElement;
+    }
+  }
+  
+  console.warn('[ReplyGuy] Could not find toolbar');
+  return null;
 }
 
 function findReplyContainer(textarea: HTMLElement): HTMLElement | null {
@@ -128,182 +198,109 @@ function findReplyContainer(textarea: HTMLElement): HTMLElement | null {
   return container as HTMLElement | null;
 }
 
+function applyLayoutAndShow(context: ReplyContext, width: number) {
+  if (!overlayContainer) return;
+  
+  // Determine layout based on width
+  const isNarrow = width < 450;
+  overlayContainer.setAttribute('data-layout', isNarrow ? 'narrow' : 'wide');
+  
+  // Context-specific padding
+  if (context === 'inline') {
+    overlayContainer.style.paddingLeft = '16px';
+    overlayContainer.style.paddingRight = '16px';
+  } else {
+    overlayContainer.style.paddingLeft = '0';
+    overlayContainer.style.paddingRight = '0';
+  }
+  
+  overlayContainer.style.display = 'block';
+  
+  // Initialize React if needed
+  if (!overlayRoot) {
+    overlayRoot = createRoot(overlayContainer);
+    overlayRoot.render(<App />);
+  }
+  
+  // Set up resize observer
+  setTimeout(() => observeContainerResize(), 100);
+  
+  console.log('[ReplyGuy] Overlay shown - Context:', context, 'Layout:', isNarrow ? 'narrow' : 'wide', 'Width:', width);
+}
+
+function fallbackPosition(textarea: HTMLElement, context: ReplyContext) {
+  if (!overlayContainer) return;
+  
+  console.log('[ReplyGuy] Using fallback positioning');
+  
+  // Find closest container with reasonable width
+  let container = textarea.parentElement;
+  for (let i = 0; i < 5; i++) {
+    if (!container) break;
+    const rect = container.getBoundingClientRect();
+    const width = rect.width;
+    
+    if (width > 400) {
+      container.appendChild(overlayContainer);
+      overlayContainer.style.width = `${width}px`;
+      overlayContainer.style.maxWidth = '100%';
+      overlayContainer.style.boxSizing = 'border-box';
+      applyLayoutAndShow(context, width);
+      console.log('[ReplyGuy] Fallback positioned in container with width:', width);
+      return;
+    }
+    container = container.parentElement;
+  }
+  
+  // Last resort: hide it
+  console.error('[ReplyGuy] Could not position overlay - no suitable container found');
+  overlayContainer.style.display = 'none';
+}
+
 function positionOverlay(textarea: HTMLElement) {
   if (!overlayContainer) return;
 
-  const isInline = isInlineReply(textarea);
-  console.log('[ReplyGuy] Positioning overlay, isInline:', isInline);
+  const context = getReplyContext(textarea);
+  console.log('[ReplyGuy] Positioning overlay, context:', context);
 
   // Remove from previous parent if exists
   if (overlayContainer.parentElement) {
     overlayContainer.remove();
   }
 
-  let positioned = false;
+  // Set context attribute for styling
+  overlayContainer.setAttribute('data-context', context);
 
-  if (isInline) {
-    // For inline replies (in tweet thread), position differently
-    console.log('[ReplyGuy] Handling inline reply positioning');
+  // UNIFIED APPROACH: Find toolbar and position after it
+  const toolbar = findToolbar(textarea);
+  
+  if (toolbar && toolbar.parentElement) {
+    // Insert overlay after toolbar
+    const parent = toolbar.parentElement;
+    const nextSibling = toolbar.nextSibling;
     
-    // Strategy 1: Find the cellInnerDiv that contains the reply composer
-    const cellInnerDiv = textarea.closest('[data-testid="cellInnerDiv"]');
-    
-    if (cellInnerDiv) {
-      // Find the toolbar within this cell
-      const toolbar = cellInnerDiv.querySelector('[data-testid="toolBar"]');
-      
-      if (toolbar) {
-        // Get the parent container that holds the toolbar
-        const toolbarParent = toolbar.parentElement;
-        
-        if (toolbarParent) {
-          // Insert our overlay right after the toolbar
-          const nextSibling = toolbar.nextSibling;
-          if (nextSibling) {
-            toolbarParent.insertBefore(overlayContainer, nextSibling);
-          } else {
-            toolbarParent.appendChild(overlayContainer);
-          }
-          
-          // Calculate width based on the cell's width
-          const cellWidth = cellInnerDiv.getBoundingClientRect().width;
-          overlayContainer.style.width = `${cellWidth}px`;
-          overlayContainer.style.maxWidth = `${cellWidth}px`;
-          overlayContainer.style.boxSizing = 'border-box';
-          
-          positioned = true;
-          console.log('[ReplyGuy] Positioned inline reply overlay after toolbar, width:', cellWidth);
-        }
-      } else {
-        // Fallback: If no toolbar found, append to the cellInnerDiv directly
-        console.log('[ReplyGuy] No toolbar found, using cellInnerDiv fallback');
-        cellInnerDiv.appendChild(overlayContainer);
-        
-        const cellWidth = cellInnerDiv.getBoundingClientRect().width;
-        overlayContainer.style.width = `${cellWidth}px`;
-        overlayContainer.style.maxWidth = `${cellWidth}px`;
-        overlayContainer.style.boxSizing = 'border-box';
-        
-        positioned = true;
-        console.log('[ReplyGuy] Positioned inline reply overlay in cellInnerDiv, width:', cellWidth);
-      }
+    if (nextSibling) {
+      parent.insertBefore(overlayContainer, nextSibling);
     } else {
-      console.warn('[ReplyGuy] Could not find cellInnerDiv for inline reply');
+      parent.appendChild(overlayContainer);
     }
+    
+    // Calculate width from parent
+    const parentWidth = parent.getBoundingClientRect().width;
+    const width = Math.max(parentWidth, 300);
+    
+    overlayContainer.style.width = `${width}px`;
+    overlayContainer.style.maxWidth = '100%';
+    overlayContainer.style.boxSizing = 'border-box';
+    
+    console.log('[ReplyGuy] Positioned after toolbar, width:', width);
+    
+    // Apply layout and show
+    applyLayoutAndShow(context, width);
   } else {
-    // For modal/DM replies, use original logic
-    console.log('[ReplyGuy] Handling modal/DM reply positioning');
-    
-    const replyContainer = findReplyContainer(textarea);
-    
-    if (!replyContainer) {
-      console.warn('[ReplyGuy] Could not find reply container');
-      return;
-    }
-
-    const containerRect = replyContainer.getBoundingClientRect();
-    const containerWidth = containerRect.width;
-    
-    console.log('[ReplyGuy] Reply container found, width:', containerWidth);
-
-    let insertionPoint: HTMLElement | null = null;
-    let toolbar: HTMLElement | null = null;
-    
-    const toolbarElement = replyContainer.querySelector(TWITTER_SELECTORS.REPLY_COMPOSER);
-    if (toolbarElement && replyContainer.contains(toolbarElement)) {
-      toolbar = toolbarElement as HTMLElement;
-      insertionPoint = toolbar;
-    } else {
-      const composerCell = textarea.closest('[data-testid="cellInnerDiv"]');
-      if (composerCell && composerCell.parentElement) {
-        let current = composerCell.nextElementSibling;
-        while (current) {
-          const isReply = current.querySelector('[data-testid="tweet"]') !== null;
-          if (isReply || current.matches('[data-testid="cellInnerDiv"]')) {
-            insertionPoint = current as HTMLElement;
-            break;
-          }
-          current = current.nextElementSibling;
-        }
-        
-        if (!insertionPoint) {
-          insertionPoint = composerCell as HTMLElement;
-        }
-      }
-    }
-
-    if (insertionPoint && insertionPoint.parentElement) {
-      const parent = insertionPoint.parentElement;
-      
-      if (toolbar && insertionPoint === toolbar) {
-        const nextSibling = insertionPoint.nextSibling;
-        if (nextSibling) {
-          parent.insertBefore(overlayContainer, nextSibling);
-        } else {
-          parent.appendChild(overlayContainer);
-        }
-        console.log('[ReplyGuy] Inserted after toolbar');
-      } else {
-        parent.insertBefore(overlayContainer, insertionPoint);
-        console.log('[ReplyGuy] Inserted before first reply');
-      }
-      
-      positioned = true;
-    } else {
-      const cellInnerDiv = textarea.closest('[data-testid="cellInnerDiv"]');
-      if (cellInnerDiv && cellInnerDiv.parentElement) {
-        const parent = cellInnerDiv.parentElement;
-        const nextCell = cellInnerDiv.nextElementSibling;
-        
-        if (nextCell) {
-          parent.insertBefore(overlayContainer, nextCell);
-        } else {
-          parent.insertBefore(overlayContainer, cellInnerDiv.nextSibling);
-        }
-        positioned = true;
-        console.log('[ReplyGuy] Positioned using fallback');
-      }
-    }
-
-    if (positioned) {
-      overlayContainer.style.width = `${containerWidth}px`;
-      overlayContainer.style.maxWidth = `${containerWidth}px`;
-      overlayContainer.style.boxSizing = 'border-box';
-      console.log('[ReplyGuy] Set width to match container:', containerWidth);
-    }
-  }
-
-  // Only show overlay if successfully positioned
-  if (positioned && overlayContainer.parentElement) {
-    // Apply responsive grid class based on width BEFORE showing
-    const width = overlayContainer.getBoundingClientRect().width;
-    const isNarrow = width < 500;
-    overlayContainer.setAttribute('data-layout', isNarrow ? 'narrow' : 'wide');
-    console.log('[ReplyGuy] Applied layout:', isNarrow ? 'narrow' : 'wide', 'width:', width);
-    
-    // For inline replies, add padding adjustment
-    if (isInline) {
-      overlayContainer.style.paddingLeft = '16px';
-      overlayContainer.style.paddingRight = '16px';
-    } else {
-      overlayContainer.style.paddingLeft = '0';
-      overlayContainer.style.paddingRight = '0';
-    }
-    
-    // Now show the overlay
-    overlayContainer.style.display = 'block';
-    
-    // Initialize React app now that it's in the DOM
-    if (!overlayRoot) {
-      overlayRoot = createRoot(overlayContainer);
-      overlayRoot.render(<App />);
-    }
-    
-    // Set up resize observer for the container
-    setTimeout(() => observeContainerResize(), 100);
-  } else {
-    console.warn('[ReplyGuy] Failed to position overlay, keeping hidden');
-    overlayContainer.style.display = 'none';
+    // Fallback: use textarea container
+    console.warn('[ReplyGuy] Toolbar not found, using fallback positioning');
+    fallbackPosition(textarea, context);
   }
 }
 

@@ -138,7 +138,7 @@ function findReplyContainer(textarea: HTMLElement): HTMLElement | null {
     }
   }
 
-  // Last resort: Walk up from textarea and find ANY reasonable parent
+  // Last resort: Walk up from textarea and find the FULL reply composer container
   console.log('[ReplyGuy] Last resort: walking up from textarea');
   let element = textarea.parentElement;
 
@@ -150,21 +150,29 @@ function findReplyContainer(textarea: HTMLElement): HTMLElement | null {
   let depth = 0;
   let bestCandidate: HTMLElement | null = null;
   let bestCandidateDepth = -1;
+  let bestCandidateWidth = 0;
 
-  while (element && element !== document.body && depth < 12) {
+  // Walk up MORE levels to find the TRUE reply composer container
+  while (element && element !== document.body && depth < 20) {
     if (element !== document.documentElement) {
       const rect = element.getBoundingClientRect();
       console.log('[ReplyGuy] Checking element at depth', depth, 'width:', rect.width, 'height:', rect.height, 'tag:', element.tagName, 'class:', element.className);
 
-      // Very lenient check - just need a visible element
-      if (rect.width > 100 && rect.height > 50) {
-        console.log('[ReplyGuy] Found valid container candidate at depth', depth);
-        bestCandidate = element;
-        bestCandidateDepth = depth;
+      // Look for WIDER containers - the reply composer should be 550px+ wide
+      // The small DraftJS containers (400-500px) are NOT what we want
+      if (rect.width >= 550 && rect.height > 100) {
+        console.log('[ReplyGuy] Found WIDE container candidate at depth', depth, 'width:', rect.width);
 
-        // If depth is reasonable (3-8 levels up), use it immediately
-        if (depth >= 3 && depth <= 8) {
-          console.log('[ReplyGuy] Using container at ideal depth:', depth);
+        // Prefer wider containers at deeper levels (further up the tree)
+        if (!bestCandidate || rect.width > bestCandidateWidth || depth > bestCandidateDepth) {
+          bestCandidate = element;
+          bestCandidateDepth = depth;
+          bestCandidateWidth = rect.width;
+        }
+
+        // If we find a very wide container (600px+) at a good depth (6-15 levels), use it immediately
+        if (rect.width >= 600 && depth >= 6 && depth <= 15) {
+          console.log('[ReplyGuy] Found ideal WIDE container at depth:', depth, 'width:', rect.width);
           return element;
         }
       }
@@ -175,11 +183,11 @@ function findReplyContainer(textarea: HTMLElement): HTMLElement | null {
 
   // If we found any candidate, use it
   if (bestCandidate) {
-    console.log('[ReplyGuy] Using best candidate found at depth', bestCandidateDepth);
+    console.log('[ReplyGuy] Using best candidate found at depth', bestCandidateDepth, 'width:', bestCandidateWidth);
     return bestCandidate;
   }
 
-  console.error('[ReplyGuy] COULD NOT FIND VALID REPLY CONTAINER - no candidates found');
+  console.error('[ReplyGuy] COULD NOT FIND VALID REPLY CONTAINER - no wide containers found');
   return null;
 }
 

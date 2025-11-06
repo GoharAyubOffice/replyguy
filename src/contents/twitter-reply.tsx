@@ -14,6 +14,8 @@ export const config: PlasmoCSConfig = {
 let overlayContainer: HTMLDivElement | null = null;
 let overlayRoot: any = null;
 let currentTextarea: HTMLElement | null = null;
+let isUIVisible = false;
+let textareaEventListeners = new WeakMap<HTMLElement, { click: () => void; focus: () => void }>();
 
 function App() {
   const [tweetContext, setTweetContext] = useState<TweetContext | null>(null);
@@ -39,7 +41,14 @@ function App() {
   return (
     <ReplyOptions
       tweetContext={tweetContext}
-      onClose={() => setIsVisible(false)}
+      onClose={() => {
+        setIsVisible(false);
+        isUIVisible = false;
+        // Clean up overlay when closed
+        if (overlayContainer && overlayContainer.parentElement) {
+          overlayContainer.remove();
+        }
+      }}
     />
   );
 }
@@ -126,24 +135,55 @@ function positionOverlay(textarea: HTMLElement) {
   
   console.log('[ReplyGuy] Reply container found, width:', containerWidth);
 
-  // Try to find the separator line or toolbar (insertion point - right before toolbar/separator)
-  let toolbar = document.querySelector(TWITTER_SELECTORS.REPLY_COMPOSER);
-  
-  // Find where to insert - after the textarea container, before the toolbar
+  // Find the reply composer section (textarea + toolbar)
+  // We need to find where the composer ends and replies begin
   let insertionPoint: HTMLElement | null = null;
+  let toolbar: HTMLElement | null = null;
   
-  if (toolbar && replyContainer.contains(toolbar)) {
-    // Insert before toolbar
-    insertionPoint = toolbar as HTMLElement;
+  // Strategy 1: Find the toolbar and insert after it
+  const toolbarElement = replyContainer.querySelector(TWITTER_SELECTORS.REPLY_COMPOSER);
+  if (toolbarElement && replyContainer.contains(toolbarElement)) {
+    toolbar = toolbarElement as HTMLElement;
+    // Insert after the toolbar, before the next element (likely first reply)
+    insertionPoint = toolbar;
   } else {
-    // Find the textarea's direct container and insert after it
-    let textareaContainer = textarea.parentElement;
-    while (textareaContainer && textareaContainer !== replyContainer) {
-      if (textareaContainer.nextSibling) {
-        insertionPoint = textareaContainer.nextSibling as HTMLElement;
-        break;
+    // Strategy 2: Find the cellInnerDiv that contains the composer
+    const composerCell = textarea.closest('[data-testid="cellInnerDiv"]');
+    if (composerCell && composerCell.parentElement) {
+      // Look for the next cellInnerDiv which should be the first reply
+      let current = composerCell.nextElementSibling;
+      while (current) {
+        // Check if this is a reply cell
+        const isReply = current.querySelector('[data-testid="tweet"]') !== null;
+        if (isReply || current.matches('[data-testid="cellInnerDiv"]')) {
+          insertionPoint = current as HTMLElement;
+          break;
+        }
+        current = current.nextElementSibling;
       }
-      textareaContainer = textareaContainer.parentElement;
+      
+      // If no reply found, use the composer cell's parent to append
+      if (!insertionPoint) {
+        insertionPoint = composerCell as HTMLElement;
+      }
+    } else {
+      // Strategy 3: Find textarea container and look for next sibling that's a reply
+      let textareaParent = textarea.parentElement;
+      while (textareaParent && textareaParent !== replyContainer) {
+        const nextSibling = textareaParent.nextElementSibling;
+        if (nextSibling) {
+          // Check if next sibling is a reply
+          const isReply = nextSibling.querySelector('[data-testid="tweet"]') !== null;
+          if (isReply) {
+            insertionPoint = nextSibling as HTMLElement;
+            break;
+          }
+          // Or use it as insertion point anyway
+          insertionPoint = nextSibling as HTMLElement;
+          break;
+        }
+        textareaParent = textareaParent.parentElement;
+      }
     }
   }
 
@@ -152,36 +192,45 @@ function positionOverlay(textarea: HTMLElement) {
     overlayContainer.remove();
   }
 
-  // Insert the overlay
+  // Insert the overlay after the composer, before the first reply
   if (insertionPoint && insertionPoint.parentElement) {
-    insertionPoint.parentElement.insertBefore(overlayContainer, insertionPoint);
-    console.log('[ReplyGuy] Inserted before insertion point');
-  } else if (replyContainer) {
-    // Find the textarea container and insert after it
-    let textareaContainer = textarea.parentElement;
-    while (textareaContainer && textareaContainer.parentElement === replyContainer) {
-      textareaContainer = textareaContainer.parentElement;
-      break;
-    }
+    const parent = insertionPoint.parentElement;
     
-    // Insert after textarea or at the end of container
-    const textareaRect = textarea.getBoundingClientRect();
-    let afterTextarea = false;
-    
-    // Try to find a good spot after textarea
-    let current = textarea.parentElement;
-    while (current && current !== replyContainer) {
-      if (current.nextSibling) {
-        replyContainer.insertBefore(overlayContainer, current.nextSibling);
-        afterTextarea = true;
-        break;
+    // If insertion point is the toolbar, insert after it
+    if (toolbar && insertionPoint === toolbar) {
+      const nextSibling = insertionPoint.nextSibling;
+      if (nextSibling) {
+        parent.insertBefore(overlayContainer, nextSibling);
+        console.log('[ReplyGuy] Inserted after toolbar, before next element');
+      } else {
+        parent.appendChild(overlayContainer);
+        console.log('[ReplyGuy] Inserted after toolbar');
       }
-      current = current.parentElement;
+    } else {
+      // Insert before the insertion point (which is likely the first reply)
+      parent.insertBefore(overlayContainer, insertionPoint);
+      console.log('[ReplyGuy] Inserted before first reply');
     }
-    
-    if (!afterTextarea) {
+  } else {
+    // Fallback: find the cellInnerDiv that contains the reply composer
+    const cellInnerDiv = textarea.closest('[data-testid="cellInnerDiv"]');
+    if (cellInnerDiv && cellInnerDiv.parentElement) {
+      const parent = cellInnerDiv.parentElement;
+      const nextCell = cellInnerDiv.nextElementSibling;
+      
+      if (nextCell) {
+        // Insert before next cell (likely first reply)
+        parent.insertBefore(overlayContainer, nextCell);
+        console.log('[ReplyGuy] Inserted before next cell (fallback)');
+      } else {
+        // Append after composer cell
+        parent.insertBefore(overlayContainer, cellInnerDiv.nextSibling);
+        console.log('[ReplyGuy] Appended after composer cell (fallback)');
+      }
+    } else if (replyContainer) {
+      // Last resort: append to reply container
       replyContainer.appendChild(overlayContainer);
-      console.log('[ReplyGuy] Appended to reply container');
+      console.log('[ReplyGuy] Appended to reply container (last resort)');
     }
   }
 
@@ -204,6 +253,12 @@ function positionOverlay(textarea: HTMLElement) {
 }
 
 function handleReplyBoxOpened(textarea: HTMLElement) {
+  // Prevent duplicate UIs
+  if (isUIVisible && currentTextarea === textarea) {
+    console.log('[ReplyGuy] UI already visible for this textarea');
+    return;
+  }
+
   console.log('[ReplyGuy] Reply box opened, extracting context...');
   currentTextarea = textarea;
   
@@ -216,6 +271,7 @@ function handleReplyBoxOpened(textarea: HTMLElement) {
     
     if ((window as any).__replyGuyShowUI) {
       (window as any).__replyGuyShowUI(tweetContext);
+      isUIVisible = true;
       console.log('[ReplyGuy] UI should now be visible');
     }
   } else {
@@ -229,8 +285,40 @@ function handleReplyBoxOpened(textarea: HTMLElement) {
     positionOverlay(textarea);
     if ((window as any).__replyGuyShowUI) {
       (window as any).__replyGuyShowUI(fallbackContext);
+      isUIVisible = true;
     }
   }
+}
+
+function attachEventListeners(textarea: HTMLElement) {
+  // Skip if already has listeners
+  if (textareaEventListeners.has(textarea)) {
+    return;
+  }
+
+  const handleClick = () => {
+    console.log('[ReplyGuy] Reply box clicked');
+    handleReplyBoxOpened(textarea);
+  };
+
+  const handleFocus = () => {
+    console.log('[ReplyGuy] Reply box focused');
+    handleReplyBoxOpened(textarea);
+  };
+
+  textarea.addEventListener('click', handleClick);
+  textarea.addEventListener('focus', handleFocus);
+  
+  // Store listeners for cleanup
+  textareaEventListeners.set(textarea, { click: handleClick, focus: handleFocus });
+}
+
+function cleanupUI() {
+  if (overlayContainer && overlayContainer.parentElement) {
+    overlayContainer.remove();
+  }
+  isUIVisible = false;
+  currentTextarea = null;
 }
 
 function observeReplyBoxes() {
@@ -255,7 +343,8 @@ function observeReplyBoxes() {
             
             if (textarea) {
               console.log('[ReplyGuy] Reply box detected with selector:', selector);
-              handleReplyBoxOpened(textarea as HTMLElement);
+              // Attach event listeners instead of immediately showing UI
+              attachEventListeners(textarea as HTMLElement);
               return; // Found one, stop searching
             }
           }
@@ -269,8 +358,8 @@ function observeReplyBoxes() {
     subtree: true
   });
 
-  // Also check for existing textareas on load
-  console.log('[ReplyGuy] Checking for existing reply boxes...');
+  // Attach listeners to existing textareas on load (but don't show UI)
+  console.log('[ReplyGuy] Attaching listeners to existing reply boxes...');
   const selectors = [
     TWITTER_SELECTORS.REPLY_TEXTAREA,
     TWITTER_SELECTORS.REPLY_TEXTAREA_ALT,
@@ -281,7 +370,7 @@ function observeReplyBoxes() {
     const existingTextarea = document.querySelector(selector);
     if (existingTextarea) {
       console.log('[ReplyGuy] Found existing reply box with selector:', selector);
-      handleReplyBoxOpened(existingTextarea as HTMLElement);
+      attachEventListeners(existingTextarea as HTMLElement);
       break;
     }
   }

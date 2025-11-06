@@ -3,11 +3,15 @@
 @tailwind utilities;
 
 .replyguy-container {
-  @apply bg-white rounded-lg shadow-md p-2.5 border border-gray-200;
+  @apply bg-transparent rounded-none p-2;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   width: 100%;
   box-sizing: border-box;
-  margin-bottom: 8px;
+  border-top: 1px solid rgb(47, 51, 54);
+  border-bottom: 1px solid rgb(47, 51, 54);
+  margin: 0;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .replyguy-header {
@@ -15,27 +19,38 @@
 }
 
 .replyguy-title {
-  @apply flex items-center gap-1 font-semibold text-sm text-gray-900;
+  @apply flex items-center gap-1 font-medium text-xs;
+  color: rgb(113, 118, 123);
 }
 
 .replyguy-icon {
-  @apply text-base;
+  @apply text-sm;
 }
 
 .replyguy-close {
-  @apply w-6 h-6 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 hover:text-gray-900 transition-colors cursor-pointer border-none bg-transparent text-sm;
+  @apply w-5 h-5 rounded-full flex items-center justify-center transition-colors cursor-pointer border-none bg-transparent text-xs;
+  color: rgb(113, 118, 123);
+  background-color: transparent;
+}
+
+.replyguy-close:hover {
+  background-color: rgba(113, 118, 123, 0.1);
+  color: rgb(231, 233, 234);
 }
 
 .replyguy-error {
-  @apply bg-red-50 text-red-700 text-xs p-2 rounded mb-2 border border-red-200;
+  @apply text-xs p-2 rounded mb-2;
+  background-color: rgba(244, 33, 46, 0.1);
+  color: rgb(244, 33, 46);
+  border: 1px solid rgba(244, 33, 46, 0.3);
 }
 
 .replyguy-section {
-  @apply mb-2 last:mb-0;
+  @apply mb-0;
 }
 
 .replyguy-section-title {
-  @apply text-xs font-medium text-gray-500 mb-1.5;
+  display: none;
 }
 
 .replyguy-options {
@@ -43,13 +58,36 @@
 }
 
 .replyguy-option {
-  @apply flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors cursor-pointer bg-white text-gray-900 text-xs whitespace-nowrap;
-  @apply disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-200 disabled:hover:bg-white;
+  @apply flex items-center justify-center gap-1 px-2.5 py-1 rounded-full transition-colors cursor-pointer text-xs whitespace-nowrap;
+  background-color: rgb(51, 54, 57);
+  color: rgb(231, 233, 234);
+  border: 1px solid rgb(51, 54, 57);
   min-width: fit-content;
 }
 
+.replyguy-option:hover {
+  background-color: rgb(39, 44, 48);
+  border-color: rgb(113, 118, 123);
+}
+
+.replyguy-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.replyguy-option:disabled:hover {
+  background-color: rgb(51, 54, 57);
+  border-color: rgb(51, 54, 57);
+}
+
 .replyguy-custom {
-  @apply border-purple-200 hover:border-purple-400 hover:bg-purple-50;
+  background-color: rgb(74, 34, 102);
+  border-color: rgb(74, 34, 102);
+}
+
+.replyguy-custom:hover {
+  background-color: rgb(91, 42, 126);
+  border-color: rgb(113, 118, 123);
 }
 
 .replyguy-emoji {

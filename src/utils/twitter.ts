@@ -5,6 +5,7 @@ export const TWITTER_SELECTORS = {
   REPLY_TEXTAREA: '[data-testid="tweetTextarea_0"]',
   REPLY_TEXTAREA_ALT: 'div[contenteditable="true"][role="textbox"]',
   REPLY_TEXTAREA_ALT2: '.public-DraftEditor-content',
+  REPLY_COMPOSER: '[data-testid="toolBar"]', // The toolbar below textarea
   REPLY_CONTAINER: '[data-testid="tweetTextarea_0"]',
   TWEET_TEXT: '[data-testid="tweetText"]',
   TWEET_AUTHOR: '[data-testid="User-Name"]',

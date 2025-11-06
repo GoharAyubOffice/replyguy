@@ -53,11 +53,12 @@ function createOverlay() {
   overlayContainer.id = 'replyguy-overlay';
   overlayContainer.style.cssText = `
     position: relative;
-    z-index: 10000;
+    z-index: 1;
     pointer-events: auto;
-    margin-top: 8px;
     width: 100%;
     display: block;
+    padding: 0;
+    margin: 0;
   `;
   
   return overlayContainer;
@@ -66,41 +67,48 @@ function createOverlay() {
 function positionOverlay(textarea: HTMLElement) {
   if (!overlayContainer) return;
 
-  // Find a good parent container to attach to
-  let replyContainer = textarea.closest('[data-testid="cellInnerDiv"]') || 
-                       textarea.closest('div[role="group"]') ||
-                       textarea.parentElement;
+  // Try to find the toolbar (best insertion point - right before toolbar)
+  let toolbar = document.querySelector(TWITTER_SELECTORS.REPLY_COMPOSER);
   
-  if (!replyContainer) {
-    console.warn('[ReplyGuy] Could not find reply container, using body');
-    replyContainer = document.body;
+  // Find the reply composer wrapper (parent of textarea and toolbar)
+  let composerWrapper = textarea.closest('div[role="group"]') || 
+                        textarea.closest('form') ||
+                        textarea.parentElement?.parentElement;
+  
+  if (!composerWrapper) {
+    console.warn('[ReplyGuy] Could not find composer wrapper');
+    composerWrapper = textarea.parentElement;
   }
 
   // Remove from previous parent if exists
-  if (overlayContainer.parentElement && overlayContainer.parentElement !== replyContainer) {
+  if (overlayContainer.parentElement) {
     overlayContainer.remove();
   }
 
-  // Insert after the textarea container
-  if (!overlayContainer.parentElement) {
-    // Find the closest block-level parent of the textarea
-    let insertTarget = textarea;
-    let parent = textarea.parentElement;
-    
-    // Go up a few levels to find a good insertion point
-    for (let i = 0; i < 5 && parent; i++) {
-      insertTarget = parent;
-      parent = parent.parentElement;
-    }
-    
-    // Insert after the textarea's container
-    if (insertTarget.nextSibling) {
-      insertTarget.parentElement?.insertBefore(overlayContainer, insertTarget.nextSibling);
+  // Insert before the toolbar, or after textarea if toolbar not found
+  if (!overlayContainer.parentElement && composerWrapper) {
+    if (toolbar && toolbar.parentElement === composerWrapper) {
+      // Insert before toolbar (ideal placement)
+      composerWrapper.insertBefore(overlayContainer, toolbar);
+      console.log('[ReplyGuy] Inserted before toolbar');
     } else {
-      insertTarget.parentElement?.appendChild(overlayContainer);
+      // Find textarea's direct container and insert after it
+      let textareaContainer = textarea.parentElement;
+      for (let i = 0; i < 3 && textareaContainer && textareaContainer !== composerWrapper; i++) {
+        if (textareaContainer.nextSibling) {
+          textareaContainer.parentElement?.insertBefore(overlayContainer, textareaContainer.nextSibling);
+          console.log('[ReplyGuy] Inserted after textarea container');
+          break;
+        }
+        textareaContainer = textareaContainer.parentElement;
+      }
+      
+      // Fallback: append to composer wrapper
+      if (!overlayContainer.parentElement) {
+        composerWrapper.appendChild(overlayContainer);
+        console.log('[ReplyGuy] Appended to composer wrapper');
+      }
     }
-    
-    console.log('[ReplyGuy] Overlay positioned after:', insertTarget);
     
     // Initialize React app now that it's in the DOM
     if (!overlayRoot) {

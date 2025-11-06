@@ -77,7 +77,7 @@ export default function ReplyOptions({ tweetContext, onClose }: ReplyOptionsProp
       <div className="replyguy-header">
         <div className="replyguy-title">
           <span className="replyguy-icon">✨</span>
-          <span>ReplyGuy AI</span>
+          <span>ReplyGuy</span>
         </div>
         <button 
           onClick={onClose}
@@ -94,32 +94,26 @@ export default function ReplyOptions({ tweetContext, onClose }: ReplyOptionsProp
         </div>
       )}
 
-      {customProfiles.length > 0 && (
-        <div className="replyguy-section">
-          <div className="replyguy-section-title">Custom Profiles</div>
-          <div className="replyguy-options">
-            {customProfiles.map((profile) => (
-              <button
-                key={profile.id}
-                onClick={() => handleCustomProfileClick(profile)}
-                disabled={loading !== null}
-                className="replyguy-option replyguy-custom"
-              >
-                {loading === profile.name ? (
-                  <span className="replyguy-spinner">⏳</span>
-                ) : (
-                  <span className="replyguy-emoji">👤</span>
-                )}
-                <span>{profile.name}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       <div className="replyguy-section">
-        <div className="replyguy-section-title">Preset Tones</div>
         <div className="replyguy-options">
+          {/* Custom profiles first */}
+          {customProfiles.map((profile) => (
+            <button
+              key={profile.id}
+              onClick={() => handleCustomProfileClick(profile)}
+              disabled={loading !== null}
+              className="replyguy-option replyguy-custom"
+            >
+              {loading === profile.name ? (
+                <span className="replyguy-spinner">⏳</span>
+              ) : (
+                <span className="replyguy-emoji">👤</span>
+              )}
+              <span>{profile.name}</span>
+            </button>
+          ))}
+          
+          {/* Preset tones */}
           {PRESET_TONES.map((tone) => (
             <button
               key={tone.value}

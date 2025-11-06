@@ -158,22 +158,22 @@ function findReplyContainer(textarea: HTMLElement): HTMLElement | null {
       const rect = element.getBoundingClientRect();
       console.log('[ReplyGuy] Checking element at depth', depth, 'width:', rect.width, 'height:', rect.height, 'tag:', element.tagName, 'class:', element.className);
 
-      // Look for WIDER containers - the reply composer should be 550px+ wide
-      // The small DraftJS containers (400-500px) are NOT what we want
-      if (rect.width >= 550 && rect.height > 100) {
+      // Look for WIDER containers - reply composer is typically 480px+ wide
+      // Small DraftJS containers (400-450px) are NOT what we want
+      if (rect.width >= 480 && rect.height > 50) {
         console.log('[ReplyGuy] Found WIDE container candidate at depth', depth, 'width:', rect.width);
 
         // Prefer wider containers at deeper levels (further up the tree)
-        if (!bestCandidate || rect.width > bestCandidateWidth || depth > bestCandidateDepth) {
+        if (!bestCandidate || rect.width > bestCandidateWidth) {
           bestCandidate = element;
           bestCandidateDepth = depth;
           bestCandidateWidth = rect.width;
+          console.log('[ReplyGuy] New best candidate: depth', depth, 'width:', rect.width);
         }
 
-        // If we find a very wide container (600px+) at a good depth (6-15 levels), use it immediately
-        if (rect.width >= 600 && depth >= 6 && depth <= 15) {
-          console.log('[ReplyGuy] Found ideal WIDE container at depth:', depth, 'width:', rect.width);
-          return element;
+        // If we find a container 500px+ at a good depth (10-19 levels), keep checking for wider ones
+        if (rect.width >= 500 && depth >= 10) {
+          console.log('[ReplyGuy] Found good container at depth:', depth, 'width:', rect.width, '- continuing to look for wider');
         }
       }
     }

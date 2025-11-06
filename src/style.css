@@ -6,12 +6,14 @@
   @apply bg-transparent rounded-none p-2;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   width: 100%;
+  max-width: 100%;
   box-sizing: border-box;
   border-top: 1px solid rgb(47, 51, 54);
-  border-bottom: 1px solid rgb(47, 51, 54);
   margin: 0;
-  padding-top: 8px;
-  padding-bottom: 8px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .replyguy-header {
@@ -54,7 +56,12 @@
 }
 
 .replyguy-options {
-  @apply flex flex-wrap gap-1.5;
+  @apply grid grid-cols-4 gap-1.5;
+  width: 100%;
+}
+
+.replyguy-custom-row {
+  margin-top: 8px;
 }
 
 .replyguy-option {

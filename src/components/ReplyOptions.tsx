@@ -96,25 +96,8 @@ export default function ReplyOptions({ tweetContext, onClose }: ReplyOptionsProp
 
       <div className="replyguy-section">
         <div className="replyguy-options">
-          {/* Custom profiles first */}
-          {customProfiles.map((profile) => (
-            <button
-              key={profile.id}
-              onClick={() => handleCustomProfileClick(profile)}
-              disabled={loading !== null}
-              className="replyguy-option replyguy-custom"
-            >
-              {loading === profile.name ? (
-                <span className="replyguy-spinner">⏳</span>
-              ) : (
-                <span className="replyguy-emoji">👤</span>
-              )}
-              <span>{profile.name}</span>
-            </button>
-          ))}
-          
-          {/* Preset tones */}
-          {PRESET_TONES.map((tone) => (
+          {/* First row: First 4 preset tones */}
+          {PRESET_TONES.slice(0, 4).map((tone) => (
             <button
               key={tone.value}
               onClick={() => handleToneClick(tone.value)}
@@ -129,7 +112,68 @@ export default function ReplyOptions({ tweetContext, onClose }: ReplyOptionsProp
               <span>{tone.label}</span>
             </button>
           ))}
+          
+          {/* Second row: Remaining 3 preset tones + first custom profile (if exists) */}
+          {PRESET_TONES.slice(4, 7).map((tone) => (
+            <button
+              key={tone.value}
+              onClick={() => handleToneClick(tone.value)}
+              disabled={loading !== null}
+              className="replyguy-option"
+            >
+              {loading === tone.value ? (
+                <span className="replyguy-spinner">⏳</span>
+              ) : (
+                <span className="replyguy-emoji">{tone.emoji}</span>
+              )}
+              <span>{tone.label}</span>
+            </button>
+          ))}
+          
+          {/* 4th slot in second row: First custom profile or empty */}
+          {customProfiles.length > 0 ? (
+            <button
+              key={customProfiles[0].id}
+              onClick={() => handleCustomProfileClick(customProfiles[0])}
+              disabled={loading !== null}
+              className="replyguy-option replyguy-custom"
+            >
+              {loading === customProfiles[0].name ? (
+                <span className="replyguy-spinner">⏳</span>
+              ) : (
+                <span className="replyguy-emoji">👤</span>
+              )}
+              <span>{customProfiles[0].name}</span>
+            </button>
+          ) : (
+            <div className="replyguy-option" style={{ opacity: 0, pointerEvents: 'none' }} />
+          )}
         </div>
+        
+        {/* Additional custom profiles in separate rows if there are more than 1 */}
+        {customProfiles.length > 1 && (
+          <div className="replyguy-options replyguy-custom-row">
+            {customProfiles.slice(1).map((profile) => (
+              <button
+                key={profile.id}
+                onClick={() => handleCustomProfileClick(profile)}
+                disabled={loading !== null}
+                className="replyguy-option replyguy-custom"
+              >
+                {loading === profile.name ? (
+                  <span className="replyguy-spinner">⏳</span>
+                ) : (
+                  <span className="replyguy-emoji">👤</span>
+                )}
+                <span>{profile.name}</span>
+              </button>
+            ))}
+            {/* Fill remaining slots in the row to maintain grid alignment */}
+            {Array.from({ length: (4 - (customProfiles.length - 1) % 4) % 4 }).map((_, i) => (
+              <div key={`empty-${i}`} className="replyguy-option" style={{ opacity: 0, pointerEvents: 'none' }} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

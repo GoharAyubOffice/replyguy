@@ -98,112 +98,60 @@ function createOverlay() {
 
 function findReplyContainer(textarea: HTMLElement): HTMLElement | null {
   console.log('[ReplyGuy] Finding reply container for textarea:', textarea);
-  
-  // Strategy 1: Look for div[role="group"] - this is the most reliable for reply composer
+
+  // Find the toolbar first - it's the most reliable anchor point
+  const toolbar = document.querySelector(TWITTER_SELECTORS.REPLY_COMPOSER) as HTMLElement;
+
+  if (toolbar) {
+    console.log('[ReplyGuy] Found toolbar, looking for common parent with textarea');
+
+    // Find the common parent that contains both textarea and toolbar
+    let element = textarea.parentElement;
+    let depth = 0;
+    while (element && element !== document.body && depth < 15) {
+      if (element.contains(toolbar)) {
+        const rect = element.getBoundingClientRect();
+        console.log('[ReplyGuy] Found common parent at depth', depth, 'width:', rect.width);
+
+        // This is the container - return it
+        if (rect.width > 50 && element !== document.documentElement) {
+          console.log('[ReplyGuy] Using container that contains both textarea and toolbar');
+          return element;
+        }
+      }
+      element = element.parentElement;
+      depth++;
+    }
+  }
+
+  // Fallback: Look for div[role="group"]
   let container = textarea.closest('div[role="group"]') as HTMLElement;
   if (container && container !== document.body && container !== document.documentElement) {
     const rect = container.getBoundingClientRect();
-    console.log('[ReplyGuy] Found container via role="group", width:', rect.width, 'top:', rect.top);
-    // More lenient width check - just ensure it's not the entire page
-    if (rect.width > 50 && rect.width < 2000 && container.contains(textarea)) {
-      console.log('[ReplyGuy] Using container from role="group"');
+    console.log('[ReplyGuy] Fallback: Found container via role="group", width:', rect.width);
+    if (rect.width > 50 && container.contains(textarea)) {
       return container;
     }
-    container = null;
   }
-  
-  // Strategy 2: Look for form element
-  if (!container) {
-    container = textarea.closest('form') as HTMLElement;
-    if (container && container !== document.body && container !== document.documentElement) {
-      const rect = container.getBoundingClientRect();
-      console.log('[ReplyGuy] Found container via form, width:', rect.width);
-      if (rect.width > 50 && rect.width < 2000 && container.contains(textarea)) {
-        console.log('[ReplyGuy] Using container from form');
-        return container;
-      }
-      container = null;
-    }
-  }
-  
-  // Strategy 3: Find parent that contains both textarea and toolbar
-  const toolbar = document.querySelector(TWITTER_SELECTORS.REPLY_COMPOSER) as HTMLElement;
-  if (toolbar && !container) {
-    console.log('[ReplyGuy] Looking for container that contains both textarea and toolbar');
-    let element = textarea.parentElement;
-    let depth = 0;
-    while (element && element !== document.body && depth < 10) {
-      if (element.contains(toolbar) && element !== document.body && element !== document.documentElement) {
-        const rect = element.getBoundingClientRect();
-        // More lenient validation
-        if (rect.width > 50 && rect.width < 2000 && element.contains(textarea)) {
-          container = element as HTMLElement;
-          console.log('[ReplyGuy] Found container via toolbar search, width:', rect.width, 'depth:', depth);
-          break;
-        }
-      }
-      element = element.parentElement;
-      depth++;
-    }
-  }
-  
-  // Strategy 4: Look for cellInnerDiv that contains the reply composer
-  if (!container) {
-    const cellInner = textarea.closest('[data-testid="cellInnerDiv"]') as HTMLElement;
-    if (cellInner && cellInner !== document.body && cellInner !== document.documentElement) {
-      const rect = cellInner.getBoundingClientRect();
-      console.log('[ReplyGuy] Found cellInnerDiv, width:', rect.width);
-      // More lenient check
-      if (rect.width > 50 && rect.width < 2000 && cellInner.contains(textarea)) {
-        container = cellInner;
-        console.log('[ReplyGuy] Using cellInnerDiv as container');
+
+  // Last resort: Walk up from textarea
+  console.log('[ReplyGuy] Last resort: walking up from textarea');
+  let element = textarea.parentElement;
+  let depth = 0;
+  while (element && element !== document.body && depth < 10) {
+    if (element !== document.documentElement) {
+      const rect = element.getBoundingClientRect();
+      if (rect.width > 200 && rect.height > 100 && element.contains(textarea)) {
+        console.log('[ReplyGuy] Found container via walk at depth', depth);
+        return element;
       }
     }
+    element = element.parentElement;
+    depth++;
   }
-  
-  // Strategy 5: Walk up from textarea and find first reasonable parent
-  if (!container) {
-    console.log('[ReplyGuy] Trying fallback: walking up from textarea');
-    let element = textarea.parentElement;
-    let depth = 0;
-    while (element && element !== document.body && depth < 8) {
-      if (element !== document.documentElement && element.tagName !== 'BODY' && element.tagName !== 'HTML') {
-        const rect = element.getBoundingClientRect();
-        // Check if it's a reasonable container (not too wide, visible)
-        if (rect.width > 50 && rect.width < 1500 && rect.height > 50 && element.contains(textarea)) {
-          // Check if it has the textarea and maybe toolbar
-          const hasToolbar = element.querySelector(TWITTER_SELECTORS.REPLY_COMPOSER);
-          if (hasToolbar || rect.width < 800) { // If it has toolbar or is narrow, it's likely the reply container
-            container = element as HTMLElement;
-            console.log('[ReplyGuy] Found container via fallback walk, width:', rect.width, 'hasToolbar:', !!hasToolbar);
-            break;
-          }
-        }
-      }
-      element = element.parentElement;
-      depth++;
-    }
-  }
-  
-  // Final validation: ensure container is not body/html
-  if (container) {
-    if (container === document.body || container === document.documentElement) {
-      console.warn('[ReplyGuy] Container is body/html, rejecting');
-      container = null;
-    } else if (!container.contains(textarea)) {
-      console.warn('[ReplyGuy] Container does not contain textarea, rejecting');
-      container = null;
-    } else {
-      const rect = container.getBoundingClientRect();
-      console.log('[ReplyGuy] Final container selected, width:', rect.width, 'top:', rect.top, 'left:', rect.left);
-    }
-  }
-  
-  if (!container) {
-    console.error('[ReplyGuy] COULD NOT FIND VALID REPLY CONTAINER - This will prevent UI positioning');
-  }
-  
-  return container;
+
+  console.error('[ReplyGuy] COULD NOT FIND VALID REPLY CONTAINER');
+  return null;
 }
 
 function positionOverlay(textarea: HTMLElement): boolean {
@@ -211,171 +159,128 @@ function positionOverlay(textarea: HTMLElement): boolean {
     console.warn('[ReplyGuy] No overlay container to position');
     return false;
   }
-  
+
   // Prevent concurrent positioning calls
   if (isPositioning) {
     console.log('[ReplyGuy] Already positioning, skipping duplicate call');
     return false;
   }
-  
+
   isPositioning = true;
 
   try {
     // Find the reply container
     const replyContainer = findReplyContainer(textarea);
-    
+
     if (!replyContainer) {
       console.warn('[ReplyGuy] Could not find reply container - cleaning up');
       cleanupOverlay();
       return false;
     }
 
-    // Verify this is actually a reply container by checking if it contains the textarea
-    if (!replyContainer.contains(textarea)) {
-      console.warn('[ReplyGuy] Container does not contain textarea - cleaning up');
-      cleanupOverlay();
-      return false;
-    }
+    console.log('[ReplyGuy] Reply container found, positioning overlay...');
 
-    // Verify container is not body or html
-    if (replyContainer === document.body || replyContainer === document.documentElement) {
-      console.warn('[ReplyGuy] Container is body/html - cleaning up');
-      cleanupOverlay();
-      return false;
-    }
+    // Find the toolbar - this is where we'll insert our UI (just before it)
+    const toolbar = replyContainer.querySelector(TWITTER_SELECTORS.REPLY_COMPOSER) as HTMLElement;
 
-    // Calculate container width and position
-    const containerRect = replyContainer.getBoundingClientRect();
-    const containerWidth = containerRect.width;
-    
-    // More lenient width validation - just ensure it's not the entire page
-    if (containerWidth > 2000 || containerWidth < 50) {
-      console.warn('[ReplyGuy] Container width seems invalid:', containerWidth, '- cleaning up');
-      cleanupOverlay();
-      return false;
-    }
-    
-    // Removed strict position validation (top < 10 check) - this was rejecting valid containers
-    console.log('[ReplyGuy] Reply container found, width:', containerWidth, 'position:', containerRect.top, containerRect.left);
-
-    // Find the toolbar - this is the best insertion point
-    let toolbar = replyContainer.querySelector(TWITTER_SELECTORS.REPLY_COMPOSER) as HTMLElement;
-    
-    // If toolbar not found in container, try to find it globally but verify it's related
-    if (!toolbar) {
-      const globalToolbar = document.querySelector(TWITTER_SELECTORS.REPLY_COMPOSER) as HTMLElement;
-      if (globalToolbar && replyContainer.contains(globalToolbar)) {
-        toolbar = globalToolbar;
-      }
-    }
-    
     // Remove from previous parent if exists
     if (overlayContainer.parentElement) {
+      console.log('[ReplyGuy] Removing overlay from previous parent');
       overlayContainer.remove();
     }
 
     let insertionSuccess = false;
 
-    // Strategy 1: Insert before toolbar (best method)
-    if (toolbar && toolbar.parentElement) {
-      toolbar.parentElement.insertBefore(overlayContainer, toolbar);
-      insertionSuccess = true;
-      console.log('[ReplyGuy] Inserted before toolbar using insertBefore');
+    // PRIMARY STRATEGY: Insert before toolbar
+    // This places our UI between the textarea and the toolbar (action buttons)
+    if (toolbar) {
+      // Find the parent that contains the toolbar
+      const toolbarParent = toolbar.parentElement;
+      if (toolbarParent) {
+        console.log('[ReplyGuy] Inserting overlay before toolbar');
+        toolbarParent.insertBefore(overlayContainer, toolbar);
+        insertionSuccess = true;
+      }
     }
-    
-    // Strategy 2: Use insertAdjacentElement after textarea wrapper
+
+    // FALLBACK STRATEGY: Find where to insert by walking up from textarea
     if (!insertionSuccess) {
-      // Find the textarea's direct parent container
-      let textareaWrapper = textarea.parentElement;
+      console.log('[ReplyGuy] Toolbar not found, using fallback strategy');
+
+      // Walk up from textarea to find a good insertion point
+      let current = textarea;
       let depth = 0;
-      
-      // Walk up to find a good wrapper (within 8 levels)
-      while (textareaWrapper && textareaWrapper !== replyContainer && depth < 8) {
-        // Try to insert after this wrapper using insertAdjacentElement
-        try {
-          // Check if this wrapper is within the reply container
-          if (replyContainer.contains(textareaWrapper) && textareaWrapper.parentElement) {
-            // Insert after the textarea wrapper
-            textareaWrapper.insertAdjacentElement('afterend', overlayContainer);
+
+      while (current && current !== replyContainer && depth < 10) {
+        const parent = current.parentElement;
+        if (parent && parent.contains(current)) {
+          // Check if this level is a good insertion point
+          // We want to insert after the element that contains the textarea
+          const nextSibling = current.nextSibling;
+
+          if (nextSibling) {
+            // Insert before the next sibling
+            parent.insertBefore(overlayContainer, nextSibling);
             insertionSuccess = true;
-            console.log('[ReplyGuy] Inserted after textarea wrapper using insertAdjacentElement, depth:', depth);
+            console.log('[ReplyGuy] Inserted using fallback at depth', depth);
             break;
+          } else if (parent !== replyContainer) {
+            // Try the parent level
+            current = parent;
+            depth++;
+            continue;
           }
-        } catch (e) {
-          console.log('[ReplyGuy] insertAdjacentElement failed at depth', depth, ':', e);
         }
-        textareaWrapper = textareaWrapper.parentElement;
+        current = parent as HTMLElement;
         depth++;
       }
-    }
-    
-    // Strategy 3: Find textarea container and insert before next sibling
-    if (!insertionSuccess) {
-      let textareaWrapper = textarea.parentElement;
-      while (textareaWrapper && textareaWrapper !== replyContainer) {
-        if (textareaWrapper.nextSibling && replyContainer.contains(textareaWrapper)) {
-          replyContainer.insertBefore(overlayContainer, textareaWrapper.nextSibling);
-          insertionSuccess = true;
-          console.log('[ReplyGuy] Inserted before next sibling of textarea wrapper');
-          break;
-        }
-        textareaWrapper = textareaWrapper.parentElement;
+
+      // Last resort: append to the reply container
+      if (!insertionSuccess && replyContainer) {
+        console.log('[ReplyGuy] Using last resort: appending to reply container');
+        replyContainer.appendChild(overlayContainer);
+        insertionSuccess = true;
       }
     }
-    
-    // If we couldn't find a safe insertion point, don't position at all
-    // CRITICAL: Never append to body - if we can't find safe spot, fail gracefully
+
     if (!insertionSuccess) {
-      console.error('[ReplyGuy] Could not find safe insertion point - cleaning up');
+      console.error('[ReplyGuy] Could not insert overlay - cleaning up');
       cleanupOverlay();
       return false;
     }
 
-    // Set the width and styling to match the container
-    if (overlayContainer.parentElement) {
-      const overlayRect = overlayContainer.getBoundingClientRect();
-      console.log('[ReplyGuy] Overlay positioned at top:', overlayRect.top, 'left:', overlayRect.left);
-      
-      // CRITICAL: Check if overlay is in wrong position (top-left corner)
-      // This is the final safety check before showing UI
-      if (overlayRect.top < 10 && overlayRect.left < 10) {
-        console.error('[ReplyGuy] Overlay is in top-left corner (top:', overlayRect.top, 'left:', overlayRect.left, ') - removing immediately');
-        cleanupOverlay();
-        return false;
-      }
-      
-      // Verify overlay is actually within the reply container bounds
-      if (!replyContainer.contains(overlayContainer)) {
-        console.error('[ReplyGuy] Overlay is not contained within reply container - removing');
-        cleanupOverlay();
-        return false;
-      }
-      
-      overlayContainer.style.width = `${containerWidth}px`;
-      overlayContainer.style.maxWidth = `${containerWidth}px`;
-      overlayContainer.style.boxSizing = 'border-box';
-      overlayContainer.style.marginTop = '8px';
-      overlayContainer.style.marginBottom = '12px';
-      console.log('[ReplyGuy] Set width to match container:', containerWidth, 'marginTop: 8px, marginBottom: 12px');
-      
-      // Initialize React app now that it's in the DOM and validated
-      if (!overlayRoot) {
-        overlayRoot = createRoot(overlayContainer);
-        overlayRoot.render(<App />);
-        console.log('[ReplyGuy] React root initialized and rendered');
-      }
-      
-      // Set up resize observer for the container (only once)
-      if (!resizeObserver) {
-        setTimeout(() => observeContainerResize(), 100);
-      }
-      
-      return true; // Successfully positioned
-    } else {
-      console.error('[ReplyGuy] Overlay has no parent element after insertion attempt - cleaning up');
+    // Verify overlay is in the DOM and within the reply container
+    if (!overlayContainer.parentElement || !replyContainer.contains(overlayContainer)) {
+      console.error('[ReplyGuy] Overlay not properly inserted - cleaning up');
       cleanupOverlay();
       return false;
     }
+
+    // Set styling to ensure it displays correctly
+    const containerRect = replyContainer.getBoundingClientRect();
+    overlayContainer.style.width = '100%';
+    overlayContainer.style.maxWidth = '100%';
+    overlayContainer.style.boxSizing = 'border-box';
+    overlayContainer.style.marginTop = '12px';
+    overlayContainer.style.marginBottom = '12px';
+    overlayContainer.style.display = 'block';
+
+    const overlayRect = overlayContainer.getBoundingClientRect();
+    console.log('[ReplyGuy] Overlay successfully positioned at top:', overlayRect.top, 'left:', overlayRect.left, 'width:', overlayRect.width);
+
+    // Initialize React app now that it's in the DOM
+    if (!overlayRoot) {
+      overlayRoot = createRoot(overlayContainer);
+      overlayRoot.render(<App />);
+      console.log('[ReplyGuy] React root initialized and rendered');
+    }
+
+    // Set up resize observer for the container
+    if (!resizeObserver) {
+      setTimeout(() => observeContainerResize(), 100);
+    }
+
+    return true;
   } finally {
     isPositioning = false;
   }
@@ -393,61 +298,38 @@ function handleReplyBoxOpened(textarea: HTMLElement) {
   handleTimeout = window.setTimeout(() => {
     // Prevent multiple calls for the same textarea
     if (handlingTextarea === textarea && overlayContainer && overlayContainer.parentElement) {
-      // Verify it's still in a valid position
-      const rect = overlayContainer.getBoundingClientRect();
-      // Check if it's in a reasonable position (not top-left corner)
-      if (rect.top > 50 && rect.left > 50 && rect.width > 100) {
-        console.log('[ReplyGuy] Already handling this textarea with valid position, skipping');
-        handleTimeout = null;
-        return;
-      } else {
-        // Invalid position, remove and recreate
-        console.log('[ReplyGuy] Overlay in invalid position, removing and recreating');
-        if (overlayContainer) {
-          overlayContainer.remove();
-          overlayContainer = null;
-          overlayRoot = null;
-        }
-      }
+      console.log('[ReplyGuy] Already handling this textarea, skipping');
+      handleTimeout = null;
+      return;
     }
-    
+
     console.log('[ReplyGuy] Reply box opened, extracting context...');
     handlingTextarea = textarea;
     currentTextarea = textarea;
-    
+
     const tweetContext = extractTweetContext(textarea);
-    
+
     // Create overlay first
     createOverlay();
-    
+
     // Try to position - positionOverlay now returns boolean
-    // CRITICAL: Only show UI if positioning succeeds
     const positioningSuccess = positionOverlay(textarea);
-    
+
     if (!positioningSuccess) {
       console.error('[ReplyGuy] Positioning failed - UI will NOT be shown');
-      // Cleanup already done in positionOverlay, but ensure it's clean
       cleanupOverlay();
       return;
     }
-    
-    // Double-check overlay is in correct position before showing UI
+
+    // Verify overlay is in the DOM
     if (!overlayContainer || !overlayContainer.parentElement) {
       console.error('[ReplyGuy] Overlay missing after positioning - cleaning up');
       cleanupOverlay();
       return;
     }
-    
-    const rect = overlayContainer.getBoundingClientRect();
-    // Final safety check - if it's in top-left corner, remove it
-    if (rect.top < 10 && rect.left < 10) {
-      console.error('[ReplyGuy] Final check: Overlay in top-left corner (top:', rect.top, 'left:', rect.left, ') - removing');
-      cleanupOverlay();
-      return;
-    }
-    
-    // Show UI only if all checks pass
-    console.log('[ReplyGuy] All checks passed - showing UI at position:', rect.top, rect.left);
+
+    // Show UI
+    console.log('[ReplyGuy] Showing UI');
     if (tweetContext) {
       console.log('[ReplyGuy] Tweet context extracted:', tweetContext);
       if ((window as any).__replyGuyShowUI) {
@@ -455,7 +337,7 @@ function handleReplyBoxOpened(textarea: HTMLElement) {
         console.log('[ReplyGuy] UI should now be visible');
       }
     } else {
-      console.warn('[ReplyGuy] Could not extract tweet context, using dummy data...');
+      console.warn('[ReplyGuy] Could not extract tweet context, using fallback...');
       const fallbackContext: TweetContext = {
         text: "Unable to extract tweet text",
         author: "Unknown"
@@ -464,7 +346,7 @@ function handleReplyBoxOpened(textarea: HTMLElement) {
         (window as any).__replyGuyShowUI(fallbackContext);
       }
     }
-    
+
     handleTimeout = null;
   }, 200); // 200ms debounce
 }
@@ -549,28 +431,25 @@ let resizeObserver: ResizeObserver | null = null;
 
 function observeContainerResize() {
   if (!currentTextarea || !overlayContainer) return;
-  
+
   const replyContainer = findReplyContainer(currentTextarea);
-  
+
   // Disconnect existing observer
   if (resizeObserver) {
     resizeObserver.disconnect();
     resizeObserver = null;
   }
-  
+
   // Only observe if container is valid
   if (replyContainer && replyContainer !== document.body && replyContainer !== document.documentElement) {
-    const rect = replyContainer.getBoundingClientRect();
-    // Only observe if container is in a valid position
-    if (rect.top > 50 && rect.width > 100 && rect.width < 1000) {
-      resizeObserver = new ResizeObserver(() => {
-        // Only update if overlay exists and is in DOM
-        if (overlayContainer && overlayContainer.parentElement) {
-          updatePosition();
-        }
-      });
-      resizeObserver.observe(replyContainer);
-    }
+    resizeObserver = new ResizeObserver(() => {
+      // Only update if overlay exists and is in DOM
+      if (overlayContainer && overlayContainer.parentElement) {
+        updatePosition();
+      }
+    });
+    resizeObserver.observe(replyContainer);
+    console.log('[ReplyGuy] Resize observer attached to reply container');
   }
 }
 

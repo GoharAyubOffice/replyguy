@@ -1,0 +1,49 @@
+{
+  "name": "replyguy",
+  "version": "1.0.0",
+  "displayName": "ReplyGuy - AI Twitter Replies",
+  "description": "AI-powered Twitter reply generator with customizable tones",
+  "scripts": {
+    "dev": "plasmo dev",
+    "build": "plasmo build",
+    "package": "plasmo package"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GoharAyubOffice/replyguy.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/GoharAyubOffice/replyguy/issues"
+  },
+  "homepage": "https://github.com/GoharAyubOffice/replyguy#readme",
+  "devDependencies": {
+    "@types/chrome": "^0.1.27",
+    "@types/node": "^24.10.0",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "autoprefixer": "^10.4.21",
+    "plasmo": "^0.90.5",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "openai": "^6.8.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "manifest": {
+    "host_permissions": [
+      "https://x.com/*",
+      "https://twitter.com/*"
+    ],
+    "permissions": [
+      "storage",
+      "activeTab"
+    ]
+  }
+}

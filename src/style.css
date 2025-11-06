@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.replyguy-container {
+  @apply bg-white rounded-2xl shadow-2xl p-4 w-[380px] border border-gray-200;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.replyguy-header {
+  @apply flex items-center justify-between mb-4;
+}
+
+.replyguy-title {
+  @apply flex items-center gap-2 font-semibold text-lg text-gray-900;
+}
+
+.replyguy-icon {
+  @apply text-xl;
+}
+
+.replyguy-close {
+  @apply w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-600 hover:text-gray-900 transition-colors cursor-pointer border-none bg-transparent;
+}
+
+.replyguy-error {
+  @apply bg-red-50 text-red-700 text-sm p-3 rounded-lg mb-4 border border-red-200;
+}
+
+.replyguy-section {
+  @apply mb-4 last:mb-0;
+}
+
+.replyguy-section-title {
+  @apply text-sm font-medium text-gray-600 mb-2;
+}
+
+.replyguy-options {
+  @apply grid grid-cols-2 gap-2;
+}
+
+.replyguy-option {
+  @apply flex items-center gap-2 px-4 py-3 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-all cursor-pointer bg-white text-gray-900;
+  @apply disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-200 disabled:hover:bg-white;
+}
+
+.replyguy-custom {
+  @apply border-purple-200 hover:border-purple-400 hover:bg-purple-50;
+}
+
+.replyguy-emoji {
+  @apply text-xl;
+}
+
+.replyguy-spinner {
+  @apply text-xl animate-pulse;
+}

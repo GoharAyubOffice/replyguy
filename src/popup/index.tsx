@@ -24,6 +24,10 @@ export default function IndexPopup() {
 
   async function loadSettings() {
     const loadedSettings = await storage.getSettings();
+    console.log('[ReplyGuy] Loaded settings:', { 
+      apiKeyLength: loadedSettings.apiKey.length,
+      model: loadedSettings.model 
+    });
     setSettings(loadedSettings);
   }
 
@@ -33,8 +37,21 @@ export default function IndexPopup() {
   }
 
   async function handleSaveSettings() {
+    console.log('[ReplyGuy] Saving settings:', { 
+      apiKeyLength: settings.apiKey.length,
+      model: settings.model 
+    });
     await storage.setApiKey(settings.apiKey);
     await storage.setModel(settings.model);
+    console.log('[ReplyGuy] Settings saved successfully');
+    
+    // Verify it was saved
+    const verified = await storage.getSettings();
+    console.log('[ReplyGuy] Verified saved settings:', { 
+      apiKeyLength: verified.apiKey.length,
+      model: verified.model 
+    });
+    
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }

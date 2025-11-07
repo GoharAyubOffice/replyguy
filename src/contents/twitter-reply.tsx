@@ -16,6 +16,9 @@ let overlayRoot: any = null;
 let currentTextarea: HTMLElement | null = null;
 let isUIVisible = false;
 let textareaEventListeners = new WeakMap<HTMLElement, { click: () => void; focus: () => void }>();
+let isPositioning = false;
+let updateTimeout: number | null = null;
+let observerSetup = false;
 
 function App() {
   const [tweetContext, setTweetContext] = useState<TweetContext | null>(null);
@@ -242,10 +245,10 @@ function applyLayoutAndShow(context: ReplyContext, width: number) {
     overlayRoot.render(<App />);
   }
   
-  // Set up resize observer
-  setTimeout(() => observeContainerResize(), 100);
+  // Don't set up resize observer here - causes circular loop
+  // Observer will be set up once on first successful positioning
   
-  console.log('[ReplyGuy] Overlay shown - Context:', context, 'Layout:', isNarrow ? 'narrow' : 'wide', 'Width:', width);
+  console.log('[DEBUG] ✓ Overlay shown - Context:', context, '| Layout:', isNarrow ? 'narrow' : 'wide', '| Width:', width);
 }
 
 function fallbackPosition(textarea: HTMLElement, context: ReplyContext) {
@@ -279,9 +282,19 @@ function fallbackPosition(textarea: HTMLElement, context: ReplyContext) {
 
 function positionOverlay(textarea: HTMLElement) {
   if (!overlayContainer) return;
+  
+  // Prevent concurrent positioning operations
+  if (isPositioning) {
+    console.log('[DEBUG] ⏸ Already positioning, skipping');
+    return;
+  }
+  
+  isPositioning = true;
+  console.log('[DEBUG] ▶ Starting positioning...');
 
-  const context = getReplyContext(textarea);
-  console.log('[ReplyGuy] Positioning overlay, context:', context);
+  try {
+    const context = getReplyContext(textarea);
+    console.log('[DEBUG] Context detected:', context);
 
   // Remove from previous parent if exists
   if (overlayContainer.parentElement) {
@@ -291,48 +304,68 @@ function positionOverlay(textarea: HTMLElement) {
   // Set context attribute for styling
   overlayContainer.setAttribute('data-context', context);
 
-  // UNIFIED APPROACH: Find toolbar and position after it
-  const toolbar = findToolbar(textarea, context);
-  
-  if (toolbar && toolbar.parentElement) {
-    // Insert overlay after toolbar
-    const parent = toolbar.parentElement;
-    const nextSibling = toolbar.nextSibling;
-    
-    if (nextSibling) {
-      parent.insertBefore(overlayContainer, nextSibling);
-    } else {
-      parent.appendChild(overlayContainer);
+    // Remove from previous parent if exists
+    if (overlayContainer.parentElement) {
+      overlayContainer.remove();
     }
+
+    // Set context attribute for styling
+    overlayContainer.setAttribute('data-context', context);
+
+    // UNIFIED APPROACH: Find toolbar and position after it
+    const toolbar = findToolbar(textarea, context);
     
-    // Calculate width from parent
-    let parentWidth = parent.getBoundingClientRect().width;
-    
-    // For modal context, ensure width fits nicely within dialog
-    if (context === 'modal') {
-      const modal = textarea.closest('[role="dialog"]');
-      if (modal) {
-        const modalWidth = modal.getBoundingClientRect().width;
-        // Use the parent width but ensure it's reasonable for the modal
-        parentWidth = Math.min(parentWidth, modalWidth - 40);
-        console.log('[ReplyGuy] Modal width adjusted:', parentWidth, 'from modal width:', modalWidth);
+    if (toolbar && toolbar.parentElement) {
+      // Insert overlay after toolbar
+      const parent = toolbar.parentElement;
+      const nextSibling = toolbar.nextSibling;
+      
+      console.log('[DEBUG] Positioning after toolbar in:', parent.tagName, parent.className);
+      
+      if (nextSibling) {
+        parent.insertBefore(overlayContainer, nextSibling);
+      } else {
+        parent.appendChild(overlayContainer);
       }
+      
+      // Calculate width from parent
+      let parentWidth = parent.getBoundingClientRect().width;
+      
+      // For modal context, ensure width fits nicely within dialog
+      if (context === 'modal') {
+        const modal = textarea.closest('[role="dialog"]');
+        if (modal) {
+          const modalWidth = modal.getBoundingClientRect().width;
+          parentWidth = Math.min(parentWidth, modalWidth - 40);
+          console.log('[DEBUG] Modal width adjusted:', parentWidth, 'from modal width:', modalWidth);
+        }
+      }
+      
+      const width = Math.max(parentWidth, 300);
+      
+      overlayContainer.style.width = `${width}px`;
+      overlayContainer.style.maxWidth = '100%';
+      overlayContainer.style.boxSizing = 'border-box';
+      
+      console.log('[DEBUG] Final width:', width);
+      
+      // Apply layout and show
+      applyLayoutAndShow(context, width);
+      
+      // Set up resize observer only once
+      if (!observerSetup) {
+        setTimeout(() => {
+          setupResizeObserver();
+        }, 200);
+      }
+    } else {
+      // Fallback: use textarea container
+      console.warn('[DEBUG] ⚠ Toolbar not found, using fallback');
+      fallbackPosition(textarea, context);
     }
-    
-    const width = Math.max(parentWidth, 300);
-    
-    overlayContainer.style.width = `${width}px`;
-    overlayContainer.style.maxWidth = '100%';
-    overlayContainer.style.boxSizing = 'border-box';
-    
-    console.log('[ReplyGuy] Positioned after toolbar, width:', width);
-    
-    // Apply layout and show
-    applyLayoutAndShow(context, width);
-  } else {
-    // Fallback: use textarea container
-    console.warn('[ReplyGuy] Toolbar not found, using fallback positioning');
-    fallbackPosition(textarea, context);
+  } finally {
+    isPositioning = false;
+    console.log('[DEBUG] ■ Positioning complete');
   }
 }
 
@@ -460,32 +493,52 @@ function observeReplyBoxes() {
   }
 }
 
-// Update position on scroll and resize
+// Update position only on resize (not scroll - causes too many updates)
 function updatePosition() {
   if (currentTextarea && overlayContainer) {
+    console.log('[DEBUG] 🔄 Repositioning triggered');
     positionOverlay(currentTextarea);
   }
 }
 
-window.addEventListener('scroll', updatePosition, { passive: true });
-window.addEventListener('resize', updatePosition);
+function throttledUpdatePosition() {
+  console.log('[DEBUG] Throttle requested');
+  
+  if (updateTimeout) {
+    clearTimeout(updateTimeout);
+  }
+  
+  updateTimeout = window.setTimeout(() => {
+    console.log('[DEBUG] Executing throttled update');
+    updatePosition();
+    updateTimeout = null;
+  }, 500) as unknown as number;
+}
 
-// Also use ResizeObserver to watch for container size changes
+// Only reposition on window resize, NOT on scroll (scroll causes continuous updates)
+window.addEventListener('resize', throttledUpdatePosition);
+
+// ResizeObserver to watch for container size changes
 let resizeObserver: ResizeObserver | null = null;
 
-function observeContainerResize() {
+function setupResizeObserver() {
+  if (observerSetup) {
+    console.log('[DEBUG] Observer already setup');
+    return;
+  }
+  
   if (!currentTextarea || !overlayContainer) return;
   
   const replyContainer = findReplyContainer(currentTextarea);
-  if (replyContainer && resizeObserver) {
-    resizeObserver.disconnect();
-  }
   
   if (replyContainer) {
     resizeObserver = new ResizeObserver(() => {
-      updatePosition();
+      console.log('[DEBUG] Container resized, throttling update');
+      throttledUpdatePosition();
     });
     resizeObserver.observe(replyContainer);
+    observerSetup = true;
+    console.log('[DEBUG] ✓ ResizeObserver setup complete');
   }
 }
 

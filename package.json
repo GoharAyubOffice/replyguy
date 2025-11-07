@@ -44,6 +44,12 @@
     "permissions": [
       "storage",
       "activeTab"
+    ],
+    "web_accessible_resources": [
+      {
+        "resources": ["icon*.png"],
+        "matches": ["https://x.com/*", "https://twitter.com/*"]
+      }
     ]
   }
 }

@@ -13,8 +13,6 @@ export const storage = {
       STORAGE_KEYS.MODEL
     ]);
     
-    console.log('[Storage] getSettings raw result:', result);
-    
     return {
       apiKey: result[STORAGE_KEYS.API_KEY] || '',
       model: result[STORAGE_KEYS.MODEL] || 'gpt-3.5-turbo'
@@ -22,9 +20,7 @@ export const storage = {
   },
 
   async setApiKey(apiKey: string): Promise<void> {
-    console.log('[Storage] setApiKey called with length:', apiKey.length);
     await chrome.storage.local.set({ [STORAGE_KEYS.API_KEY]: apiKey });
-    console.log('[Storage] setApiKey completed');
   },
 
   async setModel(model: Settings['model']): Promise<void> {

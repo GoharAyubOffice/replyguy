@@ -24,10 +24,6 @@ export default function IndexPopup() {
 
   async function loadSettings() {
     const loadedSettings = await storage.getSettings();
-    console.log('[ReplyGuy] Loaded settings:', { 
-      apiKeyLength: loadedSettings.apiKey.length,
-      model: loadedSettings.model 
-    });
     setSettings(loadedSettings);
   }
 
@@ -37,21 +33,8 @@ export default function IndexPopup() {
   }
 
   async function handleSaveSettings() {
-    console.log('[ReplyGuy] Saving settings:', { 
-      apiKeyLength: settings.apiKey.length,
-      model: settings.model 
-    });
     await storage.setApiKey(settings.apiKey);
     await storage.setModel(settings.model);
-    console.log('[ReplyGuy] Settings saved successfully');
-    
-    // Verify it was saved
-    const verified = await storage.getSettings();
-    console.log('[ReplyGuy] Verified saved settings:', { 
-      apiKeyLength: verified.apiKey.length,
-      model: verified.model 
-    });
-    
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -88,7 +71,7 @@ export default function IndexPopup() {
     <div className="w-[400px] h-[600px] p-6 bg-gray-50">
       <div className="bg-white rounded-lg shadow-sm p-6 mb-4">
         <h1 className="text-2xl font-bold text-gray-900 mb-2 flex items-center gap-2">
-          <span>✨</span> ReplyGuy AI
+          <img src={chrome.runtime.getURL("icon48.plasmo.png")} alt="ReplyGuy" className="w-6 h-6" /> ReplyGuy AI
         </h1>
         <p className="text-sm text-gray-600 mb-4">
           AI-powered Twitter reply generator

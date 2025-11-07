@@ -75,7 +75,7 @@ export default function ReplyOptions({ tweetContext, onClose }: ReplyOptionsProp
     <div className="replyguy-container">
       <div className="replyguy-header">
         <div className="replyguy-title">
-          <span className="replyguy-icon">✨</span>
+          <img src={chrome.runtime.getURL("icon32.plasmo.png")} alt="ReplyGuy" className="replyguy-icon" style={{width: '20px', height: '20px'}} />
           <span>ReplyGuy</span>
         </div>
         <button 

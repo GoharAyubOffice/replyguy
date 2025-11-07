@@ -121,15 +121,26 @@ export function insertTextIntoReply(text: string): void {
 
   console.log('[ReplyGuy] Inserting text into reply:', text.substring(0, 50));
 
-  // Check if it's a contenteditable div (Twitter uses these)
+  // Focus and click to activate editor
+  textarea.focus();
+  textarea.click();
+
+  // For Draft.js editors (what Twitter uses), use paste event
   if (textarea.getAttribute('contenteditable') === 'true') {
-    // For contenteditable divs
-    textarea.textContent = text;
-    textarea.innerText = text;
+    // Create a paste event with the text
+    const dataTransfer = new DataTransfer();
+    dataTransfer.setData('text/plain', text);
     
-    // Trigger input event
+    const pasteEvent = new ClipboardEvent('paste', {
+      bubbles: true,
+      cancelable: true,
+      clipboardData: dataTransfer
+    });
+    
+    textarea.dispatchEvent(pasteEvent);
+    
+    // Also trigger input event
     textarea.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true }));
-    textarea.dispatchEvent(new Event('change', { bubbles: true }));
   } else {
     // For actual textarea elements
     const nativeTextareaSetter = Object.getOwnPropertyDescriptor(
@@ -143,12 +154,10 @@ export function insertTextIntoReply(text: string): void {
       (textarea as any).value = text;
     }
 
-    // Trigger input event to notify Twitter
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
     textarea.dispatchEvent(new Event('change', { bubbles: true }));
   }
   
-  // Focus on the textarea
   textarea.focus();
-  console.log('[ReplyGuy] Text inserted successfully');
+  console.log('[ReplyGuy] Text inserted via paste event');
 }

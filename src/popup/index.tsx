@@ -159,9 +159,9 @@ export default function IndexPopup() {
             <textarea
               value={newProfileDescription}
               onChange={(e) => setNewProfileDescription(e.target.value)}
-              placeholder="Describe the tone you want (e.g., formal, professional, using industry jargon...)"
-              maxLength={500}
-              rows={3}
+              placeholder="Describe tone, style, and rules (e.g., 'in a professional tone, avoid emojis, keep under 150 chars, use technical terms')"
+              maxLength={1000}
+              rows={4}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
             />
             <div className="flex gap-2">

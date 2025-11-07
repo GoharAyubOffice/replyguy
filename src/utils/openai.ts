@@ -35,7 +35,29 @@ export async function generateReply({
     contextMessage += `\n\nThread context:\n${tweetContext.threadContext.join('\n')}`;
   }
 
-  const systemPrompt = `You are crafting authentic X (Twitter) replies that sound genuinely human. 
+  const systemPrompt = customDescription 
+    ? `You are crafting authentic X (Twitter) replies that sound genuinely human.
+  
+  CUSTOM TONE INSTRUCTIONS (FOLLOW THESE EXACTLY):
+  ${toneInstruction}
+  
+  BASE RULES (unless custom instructions override):
+  - Under 200 characters (aim for 100-150 for natural feel)
+  - Write like speaking, not writing. Use contractions always
+  - Mix sentence lengths. Short. Then longer. Keeps it human
+  - Start strong - jump straight into the point, no warm-up phrases
+  - Never use: "That's impressive", "Excited to see", "Great point", "Furthermore", "In conclusion"
+  - Avoid em dashes (—), minimize commas, use simple punctuation
+  - Maximum 1 emoji if it truly fits, often better without
+  - No hashtags unless replying about a specific trending topic
+  - Skip generic praise. Be specific or skip it
+  - Add tiny imperfections: trailing off with "..." or starting mid-thought
+  - Include natural filler words sparingly: "actually", "honestly", "kinda"
+  - Reference something specific from their tweet to show you read it
+  - Raw text only - no quotes, no formatting, just the reply itself
+  
+  If custom instructions specify character limits, emoji usage, hashtag rules, or formatting preferences, those take priority over base rules.`
+    : `You are crafting authentic X (Twitter) replies that sound genuinely human. 
   Generate a reply ${toneInstruction}.
   
   CRITICAL RULES:

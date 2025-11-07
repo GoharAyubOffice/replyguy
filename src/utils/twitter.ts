@@ -16,7 +16,17 @@ export const TWITTER_SELECTORS = {
 
 export function extractTweetContext(element: Element): TweetContext | null {
   try {
-    console.log('[ReplyGuy] Extracting tweet context from element:', element);
+    console.log('[ReplyGuy] Extracting context from element:', element);
+    
+    // Check if we're in a DM context
+    const isDM = element.closest('[data-testid="DMDrawer"]') || 
+                 element.closest('[data-testid="DMComposer"]') ||
+                 document.querySelector('[data-testid="DMDrawer"]');
+    
+    if (isDM) {
+      console.log('[ReplyGuy] DM context detected, extracting DM message...');
+      return extractDMContext();
+    }
     
     // Try to find the tweet container - try multiple approaches
     let tweetContainer = element.closest('[data-testid="tweet"]');
@@ -64,6 +74,77 @@ export function extractTweetContext(element: Element): TweetContext | null {
     // Return a basic context instead of null
     return {
       text: 'Error extracting tweet',
+      author: 'Unknown'
+    };
+  }
+}
+
+function extractDMContext(): TweetContext | null {
+  try {
+    // Find the message container in DMs
+    const dmDrawer = document.querySelector('[data-testid="DMDrawer"]');
+    if (!dmDrawer) {
+      console.warn('[ReplyGuy] DM Drawer not found');
+      return {
+        text: 'DM context not available',
+        author: 'Unknown'
+      };
+    }
+
+    // Get all messages in the conversation
+    const messages = dmDrawer.querySelectorAll('[data-testid="messageEntry"]');
+    
+    if (messages.length === 0) {
+      console.warn('[ReplyGuy] No messages found in DM');
+      return {
+        text: 'No messages in conversation',
+        author: 'Unknown'
+      };
+    }
+
+    // Get the last message (most recent)
+    const lastMessage = messages[messages.length - 1];
+    
+    // Extract message text - try multiple selectors
+    let messageText = '';
+    const textSelectors = [
+      '[data-testid="tweetText"]',
+      '[lang]',
+      'span[dir="auto"]'
+    ];
+    
+    for (const selector of textSelectors) {
+      const textElement = lastMessage.querySelector(selector);
+      if (textElement && textElement.textContent) {
+        messageText = textElement.textContent;
+        break;
+      }
+    }
+    
+    // If still no text, get all text content
+    if (!messageText) {
+      messageText = lastMessage.textContent || 'Message text not available';
+    }
+    
+    console.log('[ReplyGuy] Extracted DM message:', messageText.substring(0, 50));
+    
+    // Try to get sender name
+    let author = 'DM Sender';
+    const authorElement = lastMessage.querySelector('[data-testid="User-Name"]');
+    if (authorElement) {
+      author = authorElement.textContent || 'DM Sender';
+    }
+    
+    console.log('[ReplyGuy] DM sender:', author);
+    
+    return {
+      text: messageText.trim(),
+      author: author.trim()
+    };
+  } catch (error) {
+    console.error('[ReplyGuy] Error extracting DM context:', error);
+    return {
+      text: 'Error extracting DM message',
       author: 'Unknown'
     };
   }

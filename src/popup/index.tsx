@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { storage } from "~src/utils/storage";
 import type { Settings, CustomProfile, OpenAIModel } from "~src/types";
+import iconUrl from "data-base64:../../assets/icon.png";
 import "~src/style.css";
 
 export default function IndexPopup() {
@@ -71,7 +72,7 @@ export default function IndexPopup() {
     <div className="w-[400px] h-[600px] p-6 bg-gray-50">
       <div className="bg-white rounded-lg shadow-sm p-6 mb-4">
         <h1 className="text-2xl font-bold text-gray-900 mb-2 flex items-center gap-2">
-          <img src={chrome.runtime.getURL("icon48.plasmo.png")} alt="ReplyGuy" className="w-6 h-6" /> ReplyGuy AI
+          <img src={iconUrl} alt="ReplyGuy" className="w-6 h-6" /> ReplyGuy AI
         </h1>
         <p className="text-sm text-gray-600 mb-4">
           AI-powered Twitter reply generator

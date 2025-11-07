@@ -3,6 +3,7 @@ import type { PresetTone, CustomProfile, TweetContext } from "~src/types";
 import { storage } from "~src/utils/storage";
 import { generateReply } from "~src/utils/openai";
 import { insertTextIntoReply } from "~src/utils/twitter";
+import iconUrl from "data-base64:../../assets/icon.png";
 
 const PRESET_TONES: { value: PresetTone; label: string; emoji: string }[] = [
   { value: 'friendly', label: 'Friendly', emoji: '😊' },
@@ -75,7 +76,7 @@ export default function ReplyOptions({ tweetContext, onClose }: ReplyOptionsProp
     <div className="replyguy-container">
       <div className="replyguy-header">
         <div className="replyguy-title">
-          <img src={chrome.runtime.getURL("icon32.plasmo.png")} alt="ReplyGuy" className="replyguy-icon" style={{width: '20px', height: '20px'}} />
+          <img src={iconUrl} alt="ReplyGuy" className="replyguy-icon" style={{width: '20px', height: '20px'}} />
           <span>ReplyGuy</span>
         </div>
         <button 

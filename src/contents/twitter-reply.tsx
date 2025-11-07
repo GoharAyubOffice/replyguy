@@ -26,8 +26,12 @@ function App() {
 
   useEffect(() => {
     const handleTweetContext = (context: TweetContext) => {
-      setTweetContext(context);
-      setIsVisible(true);
+      try {
+        setTweetContext(context);
+        setIsVisible(true);
+      } catch (error) {
+        // Silently handle state update errors
+      }
     };
 
     (window as any).__replyGuyShowUI = handleTweetContext;
@@ -45,11 +49,14 @@ function App() {
     <ReplyOptions
       tweetContext={tweetContext}
       onClose={() => {
-        setIsVisible(false);
-        isUIVisible = false;
-        // Clean up overlay when closed
-        if (overlayContainer && overlayContainer.parentElement) {
-          overlayContainer.remove();
+        try {
+          setIsVisible(false);
+          isUIVisible = false;
+          if (overlayContainer && overlayContainer.parentElement) {
+            overlayContainer.remove();
+          }
+        } catch (error) {
+          // Silently handle cleanup errors
         }
       }}
     />
@@ -213,8 +220,12 @@ function applyLayoutAndShow(context: ReplyContext, width: number) {
   overlayContainer.style.display = 'block';
   
   if (!overlayRoot) {
-    overlayRoot = createRoot(overlayContainer);
-    overlayRoot.render(<App />);
+    try {
+      overlayRoot = createRoot(overlayContainer);
+      overlayRoot.render(<App />);
+    } catch (error) {
+      // Silently handle React mounting errors
+    }
   }
 }
 
@@ -303,33 +314,37 @@ function positionOverlay(textarea: HTMLElement) {
 }
 
 function handleReplyBoxOpened(textarea: HTMLElement) {
-  if (isUIVisible && currentTextarea === textarea) {
-    return;
-  }
+  try {
+    if (isUIVisible && currentTextarea === textarea) {
+      return;
+    }
 
-  currentTextarea = textarea;
-  
-  const tweetContext = extractTweetContext(textarea);
-  
-  if (tweetContext) {
-    createOverlay();
-    positionOverlay(textarea);
+    currentTextarea = textarea;
     
-    if ((window as any).__replyGuyShowUI) {
-      (window as any).__replyGuyShowUI(tweetContext);
-      isUIVisible = true;
+    const tweetContext = extractTweetContext(textarea);
+    
+    if (tweetContext) {
+      createOverlay();
+      positionOverlay(textarea);
+      
+      if ((window as any).__replyGuyShowUI) {
+        (window as any).__replyGuyShowUI(tweetContext);
+        isUIVisible = true;
+      }
+    } else {
+      const fallbackContext: TweetContext = {
+        text: "Unable to extract tweet text",
+        author: "Unknown"
+      };
+      createOverlay();
+      positionOverlay(textarea);
+      if ((window as any).__replyGuyShowUI) {
+        (window as any).__replyGuyShowUI(fallbackContext);
+        isUIVisible = true;
+      }
     }
-  } else {
-    const fallbackContext: TweetContext = {
-      text: "Unable to extract tweet text",
-      author: "Unknown"
-    };
-    createOverlay();
-    positionOverlay(textarea);
-    if ((window as any).__replyGuyShowUI) {
-      (window as any).__replyGuyShowUI(fallbackContext);
-      isUIVisible = true;
-    }
+  } catch (error) {
+    // Silently handle errors
   }
 }
 
@@ -452,7 +467,3 @@ if (document.readyState === 'loading') {
 } else {
   observeReplyBoxes();
 }
-
-// Don't export App as default - this causes Plasmo to auto-mount it at top-left
-// We manually control mounting inside our positioned overlay
-// export default App;

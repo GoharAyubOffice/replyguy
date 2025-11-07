@@ -18,13 +18,16 @@ export function extractTweetContext(element: Element): TweetContext | null {
   try {
     console.log('[ReplyGuy] Extracting context from element:', element);
     
-    // Check if we're in a DM context
-    const isDM = element.closest('[data-testid="DMDrawer"]') || 
-                 element.closest('[data-testid="DMComposer"]') ||
-                 document.querySelector('[data-testid="DMDrawer"]');
+    // Check if we're in a DM context - check the element itself first!
+    const isDMTextarea = element.getAttribute('data-testid') === 'dmComposerTextInput';
+    const isDMParent = element.closest('[data-testid="DMDrawer"]') || 
+                       element.closest('[data-testid="DMComposer"]');
+    const isDMOnPage = document.querySelector('[data-testid="DMDrawer"]');
     
-    if (isDM) {
-      console.log('[ReplyGuy] DM context detected, extracting DM message...');
+    console.log('[DEBUG] DM detection - textarea:', isDMTextarea, 'parent:', !!isDMParent, 'onPage:', !!isDMOnPage);
+    
+    if (isDMTextarea || isDMParent || isDMOnPage) {
+      console.log('[ReplyGuy] ✓ DM context detected, extracting DM messages...');
       return extractDMContext();
     }
     
@@ -81,65 +84,127 @@ export function extractTweetContext(element: Element): TweetContext | null {
 
 function extractDMContext(): TweetContext | null {
   try {
-    // Find the message container in DMs
-    const dmDrawer = document.querySelector('[data-testid="DMDrawer"]');
-    if (!dmDrawer) {
-      console.warn('[ReplyGuy] DM Drawer not found');
-      return {
-        text: 'DM context not available',
-        author: 'Unknown'
-      };
-    }
-
-    // Get all messages in the conversation
-    const messages = dmDrawer.querySelectorAll('[data-testid="messageEntry"]');
+    console.log('[DEBUG DM] Starting DM extraction...');
     
+    // Don't require DMDrawer - search the entire page for messages
+    // When in an active conversation, messages are in the main content area
+    
+    // Try multiple strategies to find messages
+    let messages: NodeListOf<Element> | null = null;
+    
+    // Strategy 1: Look for message entries anywhere on page
+    messages = document.querySelectorAll('[data-testid="messageEntry"]');
+    console.log('[DEBUG DM] Strategy 1 - [data-testid="messageEntry"]:', messages.length);
+    
+    // Strategy 2: Look for any element with "message" in testid
     if (messages.length === 0) {
-      console.warn('[ReplyGuy] No messages found in DM');
+      messages = document.querySelectorAll('[data-testid*="message"]');
+      console.log('[DEBUG DM] Strategy 2 - [data-testid*="message"]:', messages.length);
+    }
+    
+    // Strategy 3: Look for conversation items in main
+    if (messages.length === 0) {
+      const main = document.querySelector('main');
+      console.log('[DEBUG DM] Strategy 3 - main element found:', !!main);
+      if (main) {
+        // Look for typical DM message containers
+        messages = main.querySelectorAll('div[data-testid*="DM"], article, [role="article"]');
+        console.log('[DEBUG DM] Strategy 3 - conversation items in main:', messages.length);
+      }
+    }
+    
+    // Strategy 4: Look for tweetText elements (DMs use same component)
+    if (messages.length === 0) {
+      messages = document.querySelectorAll('[data-testid="tweetText"]');
+      console.log('[DEBUG DM] Strategy 4 - [data-testid="tweetText"]:', messages.length);
+    }
+    
+    // Strategy 5: Very broad search for any text containers with dir attribute
+    if (messages.length === 0) {
+      const main = document.querySelector('main');
+      if (main) {
+        messages = main.querySelectorAll('div[dir="auto"]');
+        console.log('[DEBUG DM] Strategy 5 - div[dir="auto"] in main:', messages.length);
+      }
+    }
+    
+    if (!messages || messages.length === 0) {
+      console.warn('[ReplyGuy] No messages found with any strategy');
       return {
         text: 'No messages in conversation',
         author: 'Unknown'
       };
     }
 
-    // Get the last message (most recent)
-    const lastMessage = messages[messages.length - 1];
+    // Extract last 5 messages for context
+    const last5Messages = Array.from(messages).slice(-5);
+    console.log('[DEBUG DM] Extracting last', last5Messages.length, 'messages');
     
-    // Extract message text - try multiple selectors
-    let messageText = '';
-    const textSelectors = [
-      '[data-testid="tweetText"]',
-      '[lang]',
-      'span[dir="auto"]'
-    ];
+    const messageTexts: string[] = [];
     
-    for (const selector of textSelectors) {
-      const textElement = lastMessage.querySelector(selector);
-      if (textElement && textElement.textContent) {
-        messageText = textElement.textContent;
-        break;
+    for (let i = 0; i < last5Messages.length; i++) {
+      const message = last5Messages[i];
+      let messageText = '';
+      
+      // Try specific selectors
+      const textSelectors = [
+        '[data-testid="tweetText"]',
+        'span[data-testid="tweetText"]',
+        '[lang]',
+        'span[dir="auto"]',
+        'div[dir="ltr"]',
+        'div[dir="auto"]'
+      ];
+      
+      for (const selector of textSelectors) {
+        const textElement = message.querySelector(selector);
+        if (textElement && textElement.textContent && textElement.textContent.trim()) {
+          messageText = textElement.textContent;
+          break;
+        }
+      }
+      
+      // Fallback to full text
+      if (!messageText || messageText.trim().length === 0) {
+        messageText = message.textContent || '';
+      }
+      
+      // Clean up (remove timestamps, reactions)
+      messageText = messageText.replace(/\d{1,2}:\d{2}\s?(AM|PM)?/gi, '').trim();
+      
+      if (messageText && messageText.length > 0) {
+        messageTexts.push(messageText);
+        console.log('[DEBUG DM] Message', i + 1, ':', messageText.substring(0, 50));
       }
     }
     
-    // If still no text, get all text content
-    if (!messageText) {
-      messageText = lastMessage.textContent || 'Message text not available';
+    if (messageTexts.length === 0) {
+      console.warn('[ReplyGuy] No message text extracted from any messages');
+      return {
+        text: 'Message text not available',
+        author: 'Unknown'
+      };
     }
     
-    console.log('[ReplyGuy] Extracted DM message:', messageText.substring(0, 50));
+    // Use the last message as primary text, others as context
+    const lastMessageText = messageTexts[messageTexts.length - 1];
+    const contextMessages = messageTexts.slice(0, -1);
     
-    // Try to get sender name
+    console.log('[ReplyGuy] ✓ Extracted DM - Last message:', lastMessageText.substring(0, 100));
+    console.log('[ReplyGuy] ✓ Context messages:', contextMessages.length);
+    
+    // Get sender name
+    const lastMessage = last5Messages[last5Messages.length - 1];
     let author = 'DM Sender';
     const authorElement = lastMessage.querySelector('[data-testid="User-Name"]');
     if (authorElement) {
       author = authorElement.textContent || 'DM Sender';
     }
     
-    console.log('[ReplyGuy] DM sender:', author);
-    
     return {
-      text: messageText.trim(),
-      author: author.trim()
+      text: lastMessageText.trim(),
+      author: author.trim(),
+      threadContext: contextMessages.length > 0 ? contextMessages : undefined
     };
   } catch (error) {
     console.error('[ReplyGuy] Error extracting DM context:', error);

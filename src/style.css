@@ -22,9 +22,9 @@
 
 #replyguy-overlay[data-context="dm"] .replyguy-container,
 #replyguy-overlay[data-context="modal"] .replyguy-container {
-  padding: 12px 16px;
+  padding: 8px 0;
   border-top: none;
-  margin-top: 12px;
+  margin: 0;
   background-color: transparent;
 }
 
@@ -38,7 +38,7 @@
 
 #replyguy-overlay[data-context="modal"] .replyguy-header,
 #replyguy-overlay[data-context="dm"] .replyguy-header {
-  margin-bottom: 0.375rem;
+  margin-bottom: 0;
   display: none;
 }
 
@@ -73,6 +73,12 @@
   @apply mb-0;
 }
 
+#replyguy-overlay[data-context="modal"] .replyguy-section,
+#replyguy-overlay[data-context="dm"] .replyguy-section {
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
 .replyguy-section-title {
   display: none;
 }
@@ -99,7 +105,7 @@
 #replyguy-overlay[data-context="modal"] .replyguy-options,
 #replyguy-overlay[data-context="dm"] .replyguy-options {
   gap: 0.5rem;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   max-width: 100%;
 }
 
@@ -137,8 +143,8 @@
 /* Compact styling for modal context */
 #replyguy-overlay[data-context="modal"] .replyguy-option,
 #replyguy-overlay[data-context="dm"] .replyguy-option {
-  padding: 0.625rem 1rem;
-  font-size: 0.875rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.813rem;
   font-weight: 500;
   background-color: rgb(239, 243, 244);
   color: rgb(15, 20, 25);

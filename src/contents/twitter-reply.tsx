@@ -213,8 +213,8 @@ function applyLayoutAndShow(context: ReplyContext, width: number) {
     overlayContainer.style.paddingLeft = '16px';
     overlayContainer.style.paddingRight = '16px';
   } else {
-    overlayContainer.style.paddingLeft = '0';
-    overlayContainer.style.paddingRight = '0';
+    overlayContainer.style.paddingLeft = '16px';
+    overlayContainer.style.paddingRight = '16px';
   }
   
   overlayContainer.style.display = 'block';

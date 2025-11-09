@@ -71,14 +71,13 @@ function createOverlay() {
   overlayContainer = document.createElement('div');
   overlayContainer.id = 'replyguy-overlay';
   overlayContainer.style.cssText = `
-    position: absolute;
+    position: relative;
     z-index: 1000;
     pointer-events: auto;
     display: none;
     padding: 0;
     margin: 0;
-    left: 0;
-    top: 100%;
+    width: 100%;
   `;
   
   return overlayContainer;

@@ -22,7 +22,10 @@
 
 #replyguy-overlay[data-context="dm"] .replyguy-container,
 #replyguy-overlay[data-context="modal"] .replyguy-container {
-  padding: 12px 0;
+  padding: 12px 16px;
+  border-top: none;
+  margin-top: 12px;
+  background-color: transparent;
 }
 
 .replyguy-header {
@@ -31,6 +34,12 @@
 
 #replyguy-overlay[data-context="inline"] .replyguy-header {
   margin-bottom: 0.5rem;
+}
+
+#replyguy-overlay[data-context="modal"] .replyguy-header,
+#replyguy-overlay[data-context="dm"] .replyguy-header {
+  margin-bottom: 0.375rem;
+  display: none;
 }
 
 .replyguy-title {
@@ -87,12 +96,24 @@
   gap: 0.5rem;
 }
 
+#replyguy-overlay[data-context="modal"] .replyguy-options,
+#replyguy-overlay[data-context="dm"] .replyguy-options {
+  gap: 0.5rem;
+  grid-template-columns: repeat(3, 1fr);
+  max-width: 100%;
+}
+
 #replyguy-overlay[data-context="inline"][data-layout="narrow"] .replyguy-options {
   gap: 0.625rem;
 }
 
 .replyguy-custom-row {
   margin-top: 8px;
+}
+
+#replyguy-overlay[data-context="modal"] .replyguy-custom-row,
+#replyguy-overlay[data-context="dm"] .replyguy-custom-row {
+  margin-top: 0.5rem;
 }
 
 .replyguy-option {
@@ -111,6 +132,35 @@
 #replyguy-overlay[data-context="inline"] .replyguy-option {
   padding: 0.375rem 0.625rem;
   font-size: 0.7rem;
+}
+
+/* Compact styling for modal context */
+#replyguy-overlay[data-context="modal"] .replyguy-option,
+#replyguy-overlay[data-context="dm"] .replyguy-option {
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  background-color: rgb(239, 243, 244);
+  color: rgb(15, 20, 25);
+  border: 1px solid rgb(207, 217, 222);
+}
+
+#replyguy-overlay[data-context="modal"] .replyguy-option:hover,
+#replyguy-overlay[data-context="dm"] .replyguy-option:hover {
+  background-color: rgb(215, 219, 220);
+  border-color: rgb(207, 217, 222);
+}
+
+#replyguy-overlay[data-context="modal"] .replyguy-custom,
+#replyguy-overlay[data-context="dm"] .replyguy-custom {
+  background-color: rgb(224, 210, 244);
+  border-color: rgb(189, 158, 234);
+}
+
+#replyguy-overlay[data-context="modal"] .replyguy-custom:hover,
+#replyguy-overlay[data-context="dm"] .replyguy-custom:hover {
+  background-color: rgb(209, 191, 239);
+  border-color: rgb(189, 158, 234);
 }
 
 .replyguy-option:hover {
@@ -142,6 +192,16 @@
   @apply text-sm;
 }
 
+#replyguy-overlay[data-context="modal"] .replyguy-emoji,
+#replyguy-overlay[data-context="dm"] .replyguy-emoji {
+  font-size: 1rem;
+}
+
 .replyguy-spinner {
   @apply text-sm animate-pulse;
+}
+
+#replyguy-overlay[data-context="modal"] .replyguy-spinner,
+#replyguy-overlay[data-context="dm"] .replyguy-spinner {
+  font-size: 1rem;
 }

@@ -16,9 +16,12 @@ let overlayRoot: any = null;
 let currentTextarea: HTMLElement | null = null;
 let isUIVisible = false;
 let textareaEventListeners = new WeakMap<HTMLElement, { click: () => void; focus: () => void }>();
+let activeTextareas = new Set<HTMLElement>();
 let isPositioning = false;
 let updateTimeout: number | null = null;
 let observerSetup = false;
+let mutationObserver: MutationObserver | null = null;
+let resizeObserver: ResizeObserver | null = null;
 
 function App() {
   const [tweetContext, setTweetContext] = useState<TweetContext | null>(null);
@@ -51,10 +54,7 @@ function App() {
       onClose={() => {
         try {
           setIsVisible(false);
-          isUIVisible = false;
-          if (overlayContainer && overlayContainer.parentElement) {
-            overlayContainer.remove();
-          }
+          cleanupUI();
         } catch (error) {
           // Silently handle cleanup errors
         }
@@ -64,10 +64,17 @@ function App() {
 }
 
 function createOverlay() {
-  if (overlayContainer) {
+  // If exists and still attached to DOM, reuse it
+  if (overlayContainer?.isConnected) {
     return overlayContainer;
   }
 
+  // If exists but detached, cleanup first
+  if (overlayContainer) {
+    cleanupUI();
+  }
+
+  // Create fresh overlay container
   overlayContainer = document.createElement('div');
   overlayContainer.id = 'replyguy-overlay';
   overlayContainer.style.cssText = `
@@ -79,7 +86,7 @@ function createOverlay() {
     margin: 0;
     width: 100%;
   `;
-  
+
   return overlayContainer;
 }
 
@@ -364,35 +371,81 @@ function attachEventListeners(textarea: HTMLElement) {
 
   textarea.addEventListener('click', handleClick);
   textarea.addEventListener('focus', handleFocus);
-  
+
   textareaEventListeners.set(textarea, { click: handleClick, focus: handleFocus });
+  activeTextareas.add(textarea);
 }
 
 function cleanupUI() {
-  if (overlayContainer && overlayContainer.parentElement) {
-    overlayContainer.remove();
+  // Unmount React root
+  if (overlayRoot) {
+    try {
+      overlayRoot.unmount();
+    } catch (error) {
+      // Silently handle unmount errors
+    }
+    overlayRoot = null;
   }
+
+  // Remove DOM element
+  if (overlayContainer) {
+    if (overlayContainer.parentElement) {
+      overlayContainer.remove();
+    }
+    overlayContainer = null;
+  }
+
+  // Reset state variables
   isUIVisible = false;
   currentTextarea = null;
+  observerSetup = false;
+  isPositioning = false;
+
+  // Disconnect observers
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
+
+  // Clear timeouts
+  if (updateTimeout) {
+    clearTimeout(updateTimeout);
+    updateTimeout = null;
+  }
+
+  // Remove event listeners from tracked textareas
+  for (const textarea of activeTextareas) {
+    const listeners = textareaEventListeners.get(textarea);
+    if (listeners) {
+      textarea.removeEventListener('click', listeners.click);
+      textarea.removeEventListener('focus', listeners.focus);
+    }
+  }
+  activeTextareas.clear();
 }
 
 function observeReplyBoxes() {
-  const observer = new MutationObserver((mutations) => {
+  // Cleanup old observer if exists
+  if (mutationObserver) {
+    mutationObserver.disconnect();
+  }
+
+  mutationObserver = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
       for (const node of mutation.addedNodes) {
         if (node.nodeType === Node.ELEMENT_NODE) {
           const element = node as Element;
-          
+
           const selectors = [
             TWITTER_SELECTORS.REPLY_TEXTAREA,
             TWITTER_SELECTORS.REPLY_TEXTAREA_ALT,
             TWITTER_SELECTORS.REPLY_TEXTAREA_ALT2
           ];
-          
+
           for (const selector of selectors) {
             const textarea = element.querySelector(selector) ||
                             (element.matches(selector) ? element : null);
-            
+
             if (textarea) {
               attachEventListeners(textarea as HTMLElement);
               return;
@@ -403,7 +456,7 @@ function observeReplyBoxes() {
     }
   });
 
-  observer.observe(document.body, {
+  mutationObserver.observe(document.body, {
     childList: true,
     subtree: true
   });
@@ -442,18 +495,21 @@ function throttledUpdatePosition() {
 
 window.addEventListener('resize', throttledUpdatePosition);
 
-let resizeObserver: ResizeObserver | null = null;
-
 function setupResizeObserver() {
   if (observerSetup) {
     return;
   }
-  
+
   if (!currentTextarea || !overlayContainer) return;
-  
+
   const replyContainer = findReplyContainer(currentTextarea);
-  
+
   if (replyContainer) {
+    // Disconnect old observer if exists
+    if (resizeObserver) {
+      resizeObserver.disconnect();
+    }
+
     resizeObserver = new ResizeObserver(() => {
       throttledUpdatePosition();
     });
@@ -468,3 +524,25 @@ if (document.readyState === 'loading') {
 } else {
   observeReplyBoxes();
 }
+
+// Detect Twitter/X SPA navigation and cleanup stale state
+let lastUrl = location.href;
+const navigationObserver = new MutationObserver(() => {
+  const currentUrl = location.href;
+  if (currentUrl !== lastUrl) {
+    lastUrl = currentUrl;
+
+    // Cleanup stale state on navigation
+    cleanupUI();
+
+    // Restart observation after a brief delay to allow new DOM to settle
+    setTimeout(() => {
+      observeReplyBoxes();
+    }, 500);
+  }
+});
+
+navigationObserver.observe(document, {
+  subtree: true,
+  childList: true
+});

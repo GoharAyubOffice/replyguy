@@ -79,7 +79,7 @@ export async function generateReply({
   - small imperfections allowed
   - contractions always
   - no warm-up lines
-  - banned phrases: “that's impressive”, “excited to see”, “furthermore”, “in conclusion”
+  - banned phrases: “that's impressive”, “excited to see”, "totally get that",“furthermore”, “in conclusion”
   - no slang or hype words
   - simple vocabulary
   - avoid commas unless required

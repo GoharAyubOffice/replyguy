@@ -161,9 +161,8 @@ export default function IndexPopup() {
               value={newProfileDescription}
               onChange={(e) => setNewProfileDescription(e.target.value)}
               placeholder="Describe tone, style, and rules (e.g., 'in a professional tone, avoid emojis, keep under 150 chars, use technical terms')"
-              maxLength={1000}
-              rows={4}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+              rows={8}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-y"
             />
             <div className="flex gap-2">
               <button

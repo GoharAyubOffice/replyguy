@@ -321,9 +321,31 @@ function positionOverlay(textarea: HTMLElement) {
   }
 }
 
+function isHomeCompose(textarea: HTMLElement): boolean {
+  const isDM = textarea.closest('[data-testid="DMDrawer"]') || 
+               textarea.closest('[data-testid="DMComposer"]');
+  if (isDM) return false;
+
+  const isReplyModal = textarea.closest('[role="dialog"]');
+  if (isReplyModal) return false;
+
+  const isTweetDetail = !!document.querySelector('[data-testid="tweet"]');
+  if (isTweetDetail) return false;
+
+  const pathname = window.location.pathname;
+  const isHomeFeed = pathname === '/' || pathname === '/home' || pathname === '/compose/tweet';
+
+  return isHomeFeed;
+}
+
 function handleReplyBoxOpened(textarea: HTMLElement) {
   try {
     if (isUIVisible && currentTextarea === textarea) {
+      return;
+    }
+
+    // Don't show reply UI on home compose box - that's for twitter-post.tsx
+    if (isHomeCompose(textarea)) {
       return;
     }
 

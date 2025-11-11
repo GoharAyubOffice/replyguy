@@ -16,6 +16,9 @@ let isUIVisible = false;
 let textareaEventListeners = new WeakMap<HTMLElement, { click: () => void; focus: () => void }>();
 let activeTextareas = new Set<HTMLElement>();
 let mutationObserver: MutationObserver | null = null;
+let resizeObserver: ResizeObserver | null = null;
+let observerSetup = false;
+let updateTimeout: number | null = null;
 
 const HOME_COMPOSE_SELECTORS = [
   '[data-testid="tweetTextarea_0"]',
@@ -92,30 +95,78 @@ function isHomeCompose(textarea: HTMLElement): boolean {
   const isReplyModal = textarea.closest('[role="dialog"]');
   if (isReplyModal) return false;
 
-  const isTweetDetail = !!document.querySelector('[data-testid="tweet"]');
-  if (isTweetDetail) return false;
-
   const pathname = window.location.pathname;
   const isHomeFeed = pathname === '/' || pathname === '/home' || pathname === '/compose/tweet';
+  
+  if (!isHomeFeed) return false;
 
-  return isHomeFeed;
+  const hasTweetInPage = !!document.querySelector('[data-testid="tweet"]');
+  if (hasTweetInPage) {
+    const cellInnerDiv = textarea.closest('[data-testid="cellInnerDiv"]');
+    if (!cellInnerDiv) {
+      return true;
+    }
+    
+    const isFirstComposer = !cellInnerDiv.querySelector('[data-testid="tweet"]');
+    return isFirstComposer;
+  }
+
+  return true;
 }
 
 function findToolbar(textarea: HTMLElement): HTMLElement | null {
-  const parent = textarea.parentElement;
-  if (!parent) return null;
-
-  let container = parent;
+  let parent = textarea.parentElement;
   for (let i = 0; i < 5; i++) {
-    if (!container) break;
-    const toolbar = container.querySelector('[data-testid="toolBar"]');
+    if (!parent) break;
+    const toolbar = parent.querySelector('[data-testid="toolBar"]');
     if (toolbar) {
       return toolbar as HTMLElement;
     }
-    container = container.parentElement;
+    parent = parent.parentElement;
   }
-
+  
   return null;
+}
+
+function findComposeContainer(textarea: HTMLElement): HTMLElement | null {
+  let container = textarea.closest('[data-testid="cellInnerDiv"]');
+  
+  if (!container) {
+    let element = textarea.parentElement;
+    for (let i = 0; i < 5; i++) {
+      if (!element) break;
+      const computed = window.getComputedStyle(element);
+      const width = parseFloat(computed.width);
+      if (width > 400 && width < 800) {
+        container = element;
+        break;
+      }
+      element = element.parentElement;
+    }
+  }
+  
+  return container as HTMLElement | null;
+}
+
+function applyLayoutAndShow(width: number) {
+  if (!overlayContainer) return;
+  
+  const isNarrow = width < 450;
+  overlayContainer.setAttribute('data-layout', isNarrow ? 'narrow' : 'wide');
+  overlayContainer.setAttribute('data-context', 'inline');
+  
+  overlayContainer.style.paddingLeft = '16px';
+  overlayContainer.style.paddingRight = '16px';
+  overlayContainer.style.display = 'block';
+  
+  if (!overlayRoot) {
+    try {
+      overlayRoot = createRoot(overlayContainer);
+      overlayRoot.render(<App />);
+    } catch (error) {
+      // Silently handle React mounting errors
+    }
+  }
 }
 
 function positionOverlay(textarea: HTMLElement) {
@@ -143,17 +194,13 @@ function positionOverlay(textarea: HTMLElement) {
     overlayContainer.style.width = `${width}px`;
     overlayContainer.style.maxWidth = '100%';
     overlayContainer.style.boxSizing = 'border-box';
-    overlayContainer.style.paddingLeft = '16px';
-    overlayContainer.style.paddingRight = '16px';
-    overlayContainer.style.display = 'block';
     
-    if (!overlayRoot) {
-      try {
-        overlayRoot = createRoot(overlayContainer);
-        overlayRoot.render(<App />);
-      } catch (error) {
-        // Silently handle React mounting errors
-      }
+    applyLayoutAndShow(width);
+    
+    if (!observerSetup) {
+      setTimeout(() => {
+        setupResizeObserver(textarea);
+      }, 200);
     }
   } else {
     let container = textarea.parentElement;
@@ -167,22 +214,44 @@ function positionOverlay(textarea: HTMLElement) {
         overlayContainer.style.width = `${width}px`;
         overlayContainer.style.maxWidth = '100%';
         overlayContainer.style.boxSizing = 'border-box';
-        overlayContainer.style.display = 'block';
         
-        if (!overlayRoot) {
-          try {
-            overlayRoot = createRoot(overlayContainer);
-            overlayRoot.render(<App />);
-          } catch (error) {
-            // Silently handle React mounting errors
-          }
-        }
+        applyLayoutAndShow(width);
         return;
       }
       container = container.parentElement;
     }
     
     overlayContainer.style.display = 'none';
+  }
+}
+
+function setupResizeObserver(textarea: HTMLElement) {
+  if (observerSetup) {
+    return;
+  }
+
+  const composeContainer = findComposeContainer(textarea);
+  
+  if (composeContainer) {
+    if (resizeObserver) {
+      resizeObserver.disconnect();
+    }
+
+    resizeObserver = new ResizeObserver(() => {
+      if (updateTimeout) {
+        clearTimeout(updateTimeout);
+      }
+      
+      updateTimeout = window.setTimeout(() => {
+        if (currentTextarea && overlayContainer) {
+          positionOverlay(currentTextarea);
+        }
+        updateTimeout = null;
+      }, 500) as unknown as number;
+    });
+    
+    resizeObserver.observe(composeContainer);
+    observerSetup = true;
   }
 }
 
@@ -249,6 +318,17 @@ function cleanupUI() {
 
   isUIVisible = false;
   currentTextarea = null;
+  observerSetup = false;
+
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
+
+  if (updateTimeout) {
+    clearTimeout(updateTimeout);
+    updateTimeout = null;
+  }
 
   for (const textarea of activeTextareas) {
     const listeners = textareaEventListeners.get(textarea);

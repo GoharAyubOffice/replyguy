@@ -329,13 +329,20 @@ function isHomeCompose(textarea: HTMLElement): boolean {
   const isReplyModal = textarea.closest('[role="dialog"]');
   if (isReplyModal) return false;
 
-  const isTweetDetail = !!document.querySelector('[data-testid="tweet"]');
-  if (isTweetDetail) return false;
-
   const pathname = window.location.pathname;
   const isHomeFeed = pathname === '/' || pathname === '/home' || pathname === '/compose/tweet';
+  
+  if (!isHomeFeed) return false;
 
-  return isHomeFeed;
+  const cellInnerDiv = textarea.closest('[data-testid="cellInnerDiv"]');
+  if (!cellInnerDiv) {
+    return true;
+  }
+  
+  const hasTweetInCell = cellInnerDiv.querySelector('[data-testid="tweet"]');
+  const isMainComposer = !hasTweetInCell;
+  
+  return isMainComposer;
 }
 
 function handleReplyBoxOpened(textarea: HTMLElement) {

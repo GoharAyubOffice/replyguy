@@ -100,18 +100,15 @@ function isHomeCompose(textarea: HTMLElement): boolean {
   
   if (!isHomeFeed) return false;
 
-  const hasTweetInPage = !!document.querySelector('[data-testid="tweet"]');
-  if (hasTweetInPage) {
-    const cellInnerDiv = textarea.closest('[data-testid="cellInnerDiv"]');
-    if (!cellInnerDiv) {
-      return true;
-    }
-    
-    const isFirstComposer = !cellInnerDiv.querySelector('[data-testid="tweet"]');
-    return isFirstComposer;
+  const cellInnerDiv = textarea.closest('[data-testid="cellInnerDiv"]');
+  if (!cellInnerDiv) {
+    return true;
   }
-
-  return true;
+  
+  const hasTweetInCell = cellInnerDiv.querySelector('[data-testid="tweet"]');
+  const isMainComposer = !hasTweetInCell;
+  
+  return isMainComposer;
 }
 
 function findToolbar(textarea: HTMLElement): HTMLElement | null {

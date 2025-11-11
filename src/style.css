@@ -211,3 +211,60 @@
 #replyguy-overlay[data-context="dm"] .replyguy-spinner {
   font-size: 1rem;
 }
+
+.replyguy-custom-section {
+  @apply mt-4 pt-3;
+  border-top: 1px solid rgb(47, 51, 54);
+}
+
+.replyguy-toggle-custom {
+  @apply flex items-center gap-2 text-xs font-medium cursor-pointer transition-colors border-none bg-transparent;
+  color: rgb(113, 118, 123);
+  padding: 0.5rem 0;
+  width: 100%;
+  text-align: left;
+}
+
+.replyguy-toggle-custom:hover {
+  color: rgb(231, 233, 234);
+}
+
+.replyguy-custom-input-container {
+  @apply mt-3 space-y-2;
+}
+
+.replyguy-custom-textarea {
+  @apply w-full p-3 rounded-lg text-sm border resize-y;
+  background-color: rgb(32, 35, 39);
+  color: rgb(231, 233, 234);
+  border-color: rgb(51, 54, 57);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  min-height: 60px;
+  box-sizing: border-box;
+}
+
+.replyguy-custom-textarea:focus {
+  outline: none;
+  border-color: rgb(29, 155, 240);
+  background-color: rgb(32, 35, 39);
+}
+
+.replyguy-custom-textarea::placeholder {
+  color: rgb(113, 118, 123);
+}
+
+.replyguy-generate-custom {
+  @apply w-full py-2.5 px-4 rounded-full font-medium text-sm transition-colors cursor-pointer border-none;
+  background-color: rgb(29, 155, 240);
+  color: rgb(255, 255, 255);
+}
+
+.replyguy-generate-custom:hover:not(:disabled) {
+  background-color: rgb(26, 140, 216);
+}
+
+.replyguy-generate-custom:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: rgb(29, 155, 240);
+}

@@ -9,6 +9,16 @@ export type PresetTone =
   | 'analytical' 
   | 'creative';
 
+export type PostCategory = 
+  | 'insight' 
+  | 'question' 
+  | 'announcement' 
+  | 'tip' 
+  | 'story' 
+  | 'opinion' 
+  | 'fun'
+  | 'custom';
+
 export interface CustomProfile {
   id: string;
   name: string;
@@ -30,6 +40,13 @@ export interface TweetContext {
 export interface GenerateReplyParams {
   tweetContext: TweetContext;
   tone: PresetTone | string;
+  customDescription?: string;
+  model: OpenAIModel;
+  apiKey: string;
+}
+
+export interface GeneratePostParams {
+  category: PostCategory | string;
   customDescription?: string;
   model: OpenAIModel;
   apiKey: string;

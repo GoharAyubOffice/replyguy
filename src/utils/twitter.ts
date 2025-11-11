@@ -240,3 +240,58 @@ export function insertTextIntoReply(text: string): void {
   
   textarea.focus();
 }
+
+export function insertTextIntoCompose(text: string): void {
+  const selectors = [
+    TWITTER_SELECTORS.REPLY_TEXTAREA,
+    TWITTER_SELECTORS.REPLY_TEXTAREA_ALT,
+    TWITTER_SELECTORS.REPLY_TEXTAREA_ALT2
+  ];
+  
+  let textarea: HTMLElement | null = null;
+  for (const selector of selectors) {
+    const element = document.querySelector(selector);
+    if (element) {
+      textarea = element as HTMLElement;
+      break;
+    }
+  }
+  
+  if (!textarea) {
+    return;
+  }
+
+  textarea.focus();
+  textarea.click();
+
+  if (textarea.getAttribute('contenteditable') === 'true') {
+    const dataTransfer = new DataTransfer();
+    dataTransfer.setData('text/plain', text);
+    
+    const pasteEvent = new ClipboardEvent('paste', {
+      bubbles: true,
+      cancelable: true,
+      clipboardData: dataTransfer
+    });
+    
+    textarea.dispatchEvent(pasteEvent);
+    
+    textarea.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true }));
+  } else {
+    const nativeTextareaSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype,
+      "value"
+    )?.set;
+    
+    if (nativeTextareaSetter) {
+      nativeTextareaSetter.call(textarea, text);
+    } else {
+      (textarea as any).value = text;
+    }
+
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    textarea.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  
+  textarea.focus();
+}

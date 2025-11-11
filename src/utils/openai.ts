@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import type { GenerateReplyParams, PresetTone } from "~src/types";
+import type { GenerateReplyParams, GeneratePostParams, PresetTone, PostCategory } from "~src/types";
 
 const TONE_PROMPTS: Record<PresetTone, string> = {
   friendly: 
@@ -22,6 +22,31 @@ const TONE_PROMPTS: Record<PresetTone, string> = {
 
   creative: 
     "simple but fresh idea. small twist or different angle. keep it grounded and straightforward. no dramatic creativity."
+};
+
+const POST_CATEGORY_PROMPTS: Record<PostCategory, string> = {
+  insight: 
+    "share a simple observation or learning. one clear point. casual tone. no hype words. real and grounded.",
+
+  question: 
+    "ask something genuine you're curious about. simple question. no rhetorical drama. just real curiosity.",
+
+  announcement: 
+    "share news or updates directly. clear and simple. no marketing tone. just informative and human.",
+
+  tip: 
+    "share one useful thing. short and practical. no teaching tone. like sharing with a friend.",
+
+  story: 
+    "quick personal moment or experience. simple narrative. casual language. no dramatic storytelling.",
+
+  opinion: 
+    "simple take on something. honest and direct. no loud claims. just your genuine view.",
+
+  fun: 
+    "light and playful. simple humor or observation. keep it genuine. no forced jokes.",
+
+  custom: ""
 };
 
 
@@ -112,5 +137,88 @@ export async function generateReply({
       throw new Error(`Failed to generate reply: ${error.message}`);
     }
     throw new Error("Failed to generate reply");
+  }
+}
+
+export async function generatePost({
+  category,
+  customDescription,
+  model,
+  apiKey
+}: GeneratePostParams): Promise<string> {
+  if (!apiKey) {
+    throw new Error("OpenAI API key is required. Please add it in the extension settings.");
+  }
+
+  const openai = new OpenAI({
+    apiKey,
+    dangerouslyAllowBrowser: true
+  });
+
+  const categoryInstruction = customDescription || POST_CATEGORY_PROMPTS[category as PostCategory] || category;
+  
+  const systemPrompt = customDescription 
+  ? `You write short, human, engaging X (Twitter) posts. No AI tone. No slang.
+
+  CUSTOM INSTRUCTIONS (follow exactly):
+  ${categoryInstruction}
+
+  BASE RULES:
+  - 100–240 characters
+  - mostly lowercase except names and emphasis
+  - short, punchy sentences. fragments allowed.
+  - small imperfections allowed: missing caps, slight pause, trailing "..."
+  - simple vocabulary only. no fancy words. no slang.
+  - contractions always
+  - direct start. no warm-up phrases.
+  - avoid commas unless needed
+  - banned phrases: "excited to announce", "thrilled to share", "furthermore", "in conclusion", "game changer"
+  - hashtags only if truly relevant
+  - 0–2 emojis max, only if they fit naturally
+  - be specific and concrete
+  - raw text only`
+
+  : `You write short, human, engaging X (Twitter) posts. No AI tone. No slang.
+
+  POST TYPE: ${categoryInstruction}
+
+  CRITICAL RULES:
+  - 100–240 characters
+  - mostly lowercase
+  - tight, punchy sentences
+  - small imperfections allowed
+  - contractions always
+  - no warm-up lines
+  - banned phrases: "excited to announce", "thrilled to share", "game changer", "furthermore", "in conclusion"
+  - no slang or hype words
+  - simple vocabulary
+  - avoid commas unless required
+  - hashtags only when relevant
+  - be specific and concrete
+  - raw text only`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: "Generate a post based on the instructions above." }
+      ],
+      max_tokens: 150,
+      temperature: 0.9
+    });
+
+    const post = completion.choices[0]?.message?.content?.trim();
+    
+    if (!post) {
+      throw new Error("No post generated");
+    }
+
+    return post;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to generate post: ${error.message}`);
+    }
+    throw new Error("Failed to generate post");
   }
 }
